@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F6CE5B"/>
+      <stop offset="1" stop-color="#D98A2B"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3D4650"/>
+      <stop offset="0.35" stop-color="#5A6773"/>
+      <stop offset="1" stop-color="#363E47"/>
+    </linearGradient>
+    <linearGradient id="eye" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B9C1C8"/>
+      <stop offset="1" stop-color="#7C8791"/>
+    </linearGradient>
+    <radialGradient id="lens" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#7FD4EE"/>
+      <stop offset="0.55" stop-color="#2E8FB3"/>
+      <stop offset="1" stop-color="#14323F"/>
+    </radialGradient>
+    <clipPath id="squircle"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+  </defs>
+
+  <!-- tile -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <g clip-path="url(#squircle)">
+    <ellipse cx="512" cy="905" rx="330" ry="46" fill="#000" opacity="0.18"/>
+  </g>
+
+  <!-- treads -->
+  <rect x="236" y="770" width="200" height="88" rx="44" fill="#262C33"/>
+  <rect x="588" y="770" width="200" height="88" rx="44" fill="#262C33"/>
+  <g fill="#4A535C">
+    <circle cx="290" cy="814" r="14"/><circle cx="336" cy="814" r="14"/><circle cx="382" cy="814" r="14"/>
+    <circle cx="642" cy="814" r="14"/><circle cx="688" cy="814" r="14"/><circle cx="734" cy="814" r="14"/>
+  </g>
+
+  <!-- database body -->
+  <path d="M262 540 V740 A250 62 0 0 0 762 740 V540 Z" fill="url(#body)"/>
+  <path d="M270 622 A242 60 0 0 0 754 622" fill="none" stroke="#242A31" stroke-width="10"/>
+  <path d="M270 692 A242 60 0 0 0 754 692" fill="none" stroke="#242A31" stroke-width="10"/>
+  <ellipse cx="512" cy="540" rx="250" ry="62" fill="#7E8B97"/>
+  <ellipse cx="512" cy="540" rx="250" ry="62" fill="none" stroke="#2E353C" stroke-width="8"/>
+  <!-- status light on the side -->
+  <circle cx="660" cy="664" r="13" fill="#6FE08A"/>
+
+  <!-- neck -->
+  <rect x="474" y="430" width="76" height="100" rx="14" fill="#2E353C"/>
+  <ellipse cx="512" cy="532" rx="62" ry="17" fill="#2E353C"/>
+
+  <!-- binocular eyes -->
+  <g>
+    <rect x="248" y="200" width="250" height="240" rx="70" fill="url(#eye)" stroke="#59636D" stroke-width="8"/>
+    <rect x="526" y="200" width="250" height="240" rx="70" fill="url(#eye)" stroke="#59636D" stroke-width="8"/>
+    <rect x="480" y="290" width="64" height="60" fill="#59636D"/>
+    <circle cx="373" cy="320" r="86" fill="#1B2229"/>
+    <circle cx="651" cy="320" r="86" fill="#1B2229"/>
+    <circle cx="373" cy="320" r="66" fill="url(#lens)"/>
+    <circle cx="651" cy="320" r="66" fill="url(#lens)"/>
+    <circle cx="352" cy="296" r="15" fill="#fff" opacity="0.9"/>
+    <circle cx="630" cy="296" r="15" fill="#fff" opacity="0.9"/>
+  </g>
+</svg>
