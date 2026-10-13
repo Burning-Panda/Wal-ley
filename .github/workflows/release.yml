@@ -5,20 +5,35 @@ on:
     tags: ["v*"]
 
 jobs:
-  build:
-    runs-on: macos-latest
+  release:
+    runs-on: macos-15
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
       - name: Build
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           xcodebuild -project wal-ley.xcodeproj -scheme wal-ley -configuration Release \
             -destination 'platform=macOS' -derivedDataPath build \
+            -skipPackagePluginValidation -skipMacroValidation \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build
+
       - name: Package
-        run: ditto -c -k --keepParent build/Build/Products/Release/wal-ley.app wal-ley.zip
+        run: |
+          APP=build/Build/Products/Release/wal-ley.app
+          codesign --force --deep --sign - "$APP"
+          NAME="wal-ley-${GITHUB_REF_NAME}"
+          ditto -c -k --keepParent "$APP" "$NAME.zip"
+          mkdir dmg && cp -R "$APP" dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname "wal-ley" -srcfolder dmg -ov -format UDZO "$NAME.dmg"
+          shasum -a 256 "$NAME.zip" "$NAME.dmg" > SHA256SUMS.txt
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" wal-ley.zip --generate-notes
+        run: |
+          gh release create "$GITHUB_REF_NAME" wal-ley-*.zip wal-ley-*.dmg SHA256SUMS.txt \
+            --generate-notes --verify-tag
