@@ -75,6 +75,12 @@ struct DataGridView: NSViewRepresentable {
         }
     }
 
+    /// Report the proposed size instead of letting SwiftUI measure the NSScrollView. Measuring forces AppKit to lay out
+    /// the whole table (creating every visible cell) on each SwiftUI layout pass, e.g. when the filter bar changes height.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 400, height: proposal.height ?? 300)
+    }
+
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     /// Forwards Delete / Forward Delete to the grid instead of beeping.
@@ -144,10 +150,12 @@ struct DataGridView: NSViewRepresentable {
             return cell
         }
 
+        /// Cells use autoresizing, not Auto Layout: constraints for every visible cell are what made big grids slow.
         private func makeCell() -> NSTableCellView {
-            let cell = NSTableCellView()
+            let cell = NSTableCellView(frame: NSRect(x: 0, y: 0, width: 120, height: 22))
             cell.identifier = cellID
-            let field = NSTextField()
+            let field = NSTextField(frame: NSRect(x: 4, y: 2.5, width: 112, height: 17))
+            field.autoresizingMask = [.width]
             field.isBordered = false
             field.drawsBackground = false
             field.isSelectable = false
@@ -155,14 +163,8 @@ struct DataGridView: NSViewRepresentable {
             field.lineBreakMode = .byTruncatingTail
             field.cell?.usesSingleLineMode = true
             field.delegate = self
-            field.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(field)
             cell.textField = field
-            NSLayoutConstraint.activate([
-                field.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-                field.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
-                field.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-            ])
             return cell
         }
 
