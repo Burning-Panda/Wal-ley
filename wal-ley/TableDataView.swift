@@ -50,8 +50,8 @@ private struct FilterBar: View {
             }
             if sqlMode {
                 // The whole query, editable. Paging is applied on top automatically.
-                CodeEditor(text: $sqlText, position: $position, messages: $messages, language: .sqlite(),
-                           layout: CodeEditor.LayoutConfiguration(showMinimap: false, wrapText: true))
+                CodeEditor(text: $sqlText, position: $position, messages: $messages, language: .sqlite())
+                    .environment(\.codeEditorLayoutConfiguration, CodeEditor.LayoutConfiguration(showMinimap: false, wrapText: true))
                     .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)
                     .frame(height: 96)
                     .clipShape(RoundedRectangle(cornerRadius: 6))

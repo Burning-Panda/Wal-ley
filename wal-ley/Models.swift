@@ -1,6 +1,6 @@
 import Foundation
 
-struct SchemaColumn: Identifiable, Hashable {
+nonisolated struct SchemaColumn: Identifiable, Hashable {
     var id: String { name }
     let name: String
     let type: String
@@ -8,14 +8,14 @@ struct SchemaColumn: Identifiable, Hashable {
     let primaryKey: Bool
 }
 
-struct SchemaIndex: Identifiable, Hashable {
+nonisolated struct SchemaIndex: Identifiable, Hashable {
     var id: String { name }
     let name: String
     let unique: Bool
     let columns: [String]
 }
 
-struct SchemaTable: Identifiable, Hashable {
+nonisolated struct SchemaTable: Identifiable, Hashable {
     var id: String { name }
     let name: String
     let isView: Bool
@@ -23,7 +23,7 @@ struct SchemaTable: Identifiable, Hashable {
     let indexes: [SchemaIndex]
 }
 
-struct FileMetadata {
+nonisolated struct FileMetadata {
     let name: String
     let directory: String
     let size: Int64
@@ -31,18 +31,18 @@ struct FileMetadata {
 }
 
 /// What the sidebar can select. The console is a mode of its own, never a table.
-enum SidebarItem: Hashable {
+nonisolated enum SidebarItem: Hashable {
     case console
     case table(String)
 }
 
-struct SortState: Equatable {
+nonisolated struct SortState: Equatable {
     var column: String
     var ascending: Bool
 }
 
 /// One page of display data. `rowIDs` is empty when rows can't be addressed (views, WITHOUT ROWID, console).
-struct GridData {
+nonisolated struct GridData {
     var columns: [String] = []
     var rows: [[String]] = []
     var rowIDs: [Int64] = []
@@ -60,7 +60,7 @@ nonisolated struct RowKey: Hashable {
     let rowID: Int64
 }
 
-enum FilterOperator: String, CaseIterable, Identifiable {
+nonisolated enum FilterOperator: String, CaseIterable, Identifiable {
     case contains = "contains"
     case equals = "equals"
     case notEquals = "does not equal"
@@ -75,7 +75,7 @@ enum FilterOperator: String, CaseIterable, Identifiable {
     var needsValue: Bool { self != .isNull && self != .isNotNull }
 }
 
-struct ColumnFilter: Identifiable, Hashable {
+nonisolated struct ColumnFilter: Identifiable, Hashable {
     let id = UUID()
     var column: String
     var op: FilterOperator
@@ -120,7 +120,7 @@ nonisolated func sqlQuote(_ identifier: String) -> String {
     "\"" + identifier.replacingOccurrences(of: "\"", with: "\"\"") + "\""
 }
 
-enum FuzzyMatch {
+nonisolated enum FuzzyMatch {
     /// Subsequence match. Higher is better; nil means no match.
     static func score(_ query: String, in candidate: String) -> Int? {
         score(Array(query.lowercased()), inLowercased: Array(candidate.lowercased()))

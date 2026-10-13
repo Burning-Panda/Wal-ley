@@ -14,8 +14,8 @@ struct ConsoleView: View {
                 CodeEditor(text: $manager.consoleSQL,
                            position: $position,
                            messages: $messages,
-                           language: .sqlite(manager.languageService),
-                           layout: CodeEditor.LayoutConfiguration(showMinimap: false, wrapText: true))
+                           language: .sqlite(manager.languageService))
+                    .environment(\.codeEditorLayoutConfiguration, CodeEditor.LayoutConfiguration(showMinimap: false, wrapText: true))
                     .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)
                 Divider()
                 HStack {
