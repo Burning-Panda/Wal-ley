@@ -8,6 +8,7 @@ struct wal_leyApp: App {
         WindowGroup {
             ContentView(manager: manager)
         }
+        .handlesExternalEvents(matching: ["*"])
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Open…") { manager.showOpenPanel = true }

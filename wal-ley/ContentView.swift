@@ -34,6 +34,7 @@ struct ContentView: View {
             Task { await manager.requestOpen(url) }
             return true
         }
+        .onOpenURL { url in Task { await manager.requestOpen(url) } }
         .frame(minWidth: 900, minHeight: 560)
     }
 
