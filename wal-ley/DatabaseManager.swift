@@ -26,6 +26,10 @@ final class DatabaseManager {
     private(set) var grid = GridData()
     private(set) var sort: SortState?
     private(set) var filters: [ColumnFilter] = []
+    /// Columns chosen for display; nil means all. Ignored for hand-written queries.
+    private(set) var selectedColumns: Set<String>?
+    /// A hand-written SELECT. When set it replaces `filters`; the grid pages and sorts it but can't edit it.
+    private(set) var rawQuery: String?
     private(set) var page = 0
     private(set) var totalRows = 0
     private(set) var isEditable = false
@@ -55,6 +59,42 @@ final class DatabaseManager {
         guard case .table(let name)? = selection else { return nil }
         return tables.first { $0.name == name }
     }
+
+    /// Chosen columns in schema order, or nil when every column is shown.
+    var columnList: [String]? {
+        guard let selectedColumns, let table = selectedTable else { return nil }
+        let names = table.columns.map(\.name).filter(selectedColumns.contains)
+        return names.count == table.columns.count || names.isEmpty ? nil : names
+    }
+
+    func isColumnSelected(_ name: String) -> Bool { selectedColumns?.contains(name) ?? true }
+
+    func setColumn(_ name: String, selected: Bool) {
+        guard let table = selectedTable else { return }
+        var set = selectedColumns ?? Set(table.columns.map(\.name))
+        if selected { set.insert(name) } else if set.count > 1 { set.remove(name) }  // keep at least one
+        selectedColumns = set.count == table.columns.count ? nil : set
+        reload()
+    }
+
+    func showAllColumns() {
+        selectedColumns = nil
+        reload()
+    }
+
+    /// The query the grid is showing, as SQL text. Builder values are inlined for display only; the real query
+    /// binds them as parameters. Paging is applied on top and is not part of this text.
+    var generatedQuery: String {
+        if let rawQuery { return rawQuery }
+        guard let table = selectedTable else { return "" }
+        let list = columnList?.map(sqlQuote).joined(separator: ", ") ?? "*"
+        var sql = "SELECT \(list) FROM \(sqlQuote(table.name))"
+        if !filters.isEmpty { sql += " WHERE " + filters.map(\.displayClause).joined(separator: " AND ") }
+        if let sort { sql += " ORDER BY \(sqlQuote(sort.column)) \(sort.ascending ? "ASC" : "DESC")" }
+        return sql
+    }
+
+    var queryPreview: String { generatedQuery + " LIMIT \(Self.pageSize) OFFSET \(page * Self.pageSize)" }
 
     var pageCount: Int { max(1, (totalRows + Self.pageSize - 1) / Self.pageSize) }
 
@@ -179,6 +219,8 @@ final class DatabaseManager {
         isLoading = false
         sort = nil
         filters = []
+        rawQuery = nil
+        selectedColumns = nil
         page = 0
         switch selection {
         case .table:
@@ -200,7 +242,18 @@ final class DatabaseManager {
     }
 
     func addFilter(_ filter: ColumnFilter) {
+        rawQuery = nil
         filters.append(filter)
+        page = 0
+        reload()
+    }
+
+    /// Runs a hand-written SELECT in the grid (empty clears it). Replaces any builder filters.
+    func setRawQuery(_ text: String?) {
+        var trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        while trimmed.hasSuffix(";") { trimmed.removeLast() }
+        filters = []
+        rawQuery = trimmed.isEmpty ? nil : trimmed
         page = 0
         reload()
     }
@@ -221,12 +274,12 @@ final class DatabaseManager {
     func reload() {
         guard let queue, let table = selectedTable else { return }
         loadTask?.cancel()
-        let (sort, filters, page) = (self.sort, self.filters, self.page)
+        let (sort, filters, rawQuery, columns, page) = (self.sort, self.filters, self.rawQuery, self.columnList, self.page)
         isLoading = true
         loadTask = Task {
             do {
                 let result = try await Self.fetchPage(queue, table: table.name, isView: table.isView,
-                                                     sort: sort, filters: filters, page: page)
+                                                     sort: sort, filters: filters, rawQuery: rawQuery, columns: columns, page: page)
                 guard !Task.isCancelled else { return }
                 grid = stamped(result.grid)
                 totalRows = result.total
@@ -255,10 +308,12 @@ final class DatabaseManager {
 
     nonisolated private static func fetchPage(
         _ queue: DatabaseQueue, table: String, isView: Bool,
-        sort: SortState?, filters: [ColumnFilter], page: Int
+        sort: SortState?, filters: [ColumnFilter], rawQuery: String?, columns: [String]?, page: Int
     ) async throws -> (grid: GridData, total: Int, editable: Bool) {
         try await queue.read { db in
-            let from = sqlQuote(table)
+            // A hand-written query is wrapped as a subquery so paging and sorting still happen in SQL.
+            // The newline keeps a trailing `--` comment from swallowing the closing parenthesis.
+            let from = rawQuery.map { "(\($0)\n)" } ?? sqlQuote(table)
             var clauses: [String] = []
             var arguments: [DatabaseValueConvertible?] = []
             for filter in filters {
@@ -273,8 +328,10 @@ final class DatabaseManager {
                                          arguments: StatementArguments(arguments)) ?? 0
 
             // Rows are addressable by rowid, except views and WITHOUT ROWID tables.
-            let hasRowID = !isView && (try? db.makeStatement(sql: "SELECT rowid FROM \(from) LIMIT 0")) != nil
-            let select = hasRowID ? "rowid AS \"__rowid__\", *" : "*"
+            // Raw queries run in a read transaction, so they can read but never modify.
+            let hasRowID = rawQuery == nil && !isView && (try? db.makeStatement(sql: "SELECT rowid FROM \(from) LIMIT 0")) != nil
+            let list = rawQuery == nil ? (columns?.map(sqlQuote).joined(separator: ", ") ?? "*") : "*"
+            let select = hasRowID ? "rowid AS \"__rowid__\", \(list)" : list
 
             let statement = try db.makeStatement(
                 sql: "SELECT \(select) FROM \(from)\(whereSQL)\(orderSQL) LIMIT ? OFFSET ?")

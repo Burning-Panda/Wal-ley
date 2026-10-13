@@ -83,6 +83,14 @@ struct ColumnFilter: Identifiable, Hashable {
 
     var label: String { op.needsValue ? "\(column) \(op.rawValue) “\(value)”" : "\(column) \(op.rawValue)" }
 
+    /// The same fragment with its value inlined as a literal. For display and for seeding the SQL editor only;
+    /// queries always run with bound parameters.
+    var displayClause: String {
+        let c = clause()
+        guard let argument = c.argument else { return c.sql }
+        return c.sql.replacingOccurrences(of: "?", with: sqlLiteral(argument))
+    }
+
     /// A parameterised WHERE fragment; the value is never interpolated into SQL.
     func clause() -> (sql: String, argument: String?) {
         let col = sqlQuote(column)
@@ -104,7 +112,11 @@ struct ColumnFilter: Identifiable, Hashable {
     }
 }
 
-func sqlQuote(_ identifier: String) -> String {
+nonisolated func sqlLiteral(_ text: String) -> String {
+    "'" + text.replacingOccurrences(of: "'", with: "''") + "'"
+}
+
+nonisolated func sqlQuote(_ identifier: String) -> String {
     "\"" + identifier.replacingOccurrences(of: "\"", with: "\"\"") + "\""
 }
 

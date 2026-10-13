@@ -1,4 +1,6 @@
 import SwiftUI
+import CodeEditorView
+import LanguageSupport
 
 struct TableDataView: View {
     @Bindable var manager: DatabaseManager
@@ -27,47 +29,105 @@ struct TableDataView: View {
 
 private struct FilterBar: View {
     @Bindable var manager: DatabaseManager
+    @State private var sqlMode = false
+    @State private var sqlText = ""
+    @State private var position = CodeEditor.Position()
+    @State private var messages: Set<TextLocated<Message>> = []
     @State private var column = ""
     @State private var op = FilterOperator.contains
     @State private var value = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Picker("Column", selection: $column) {
-                    ForEach(manager.selectedTable?.columns ?? []) { Text($0.name).tag($0.name) }
+                Picker("Mode", selection: $sqlMode) {
+                    Text("Builder").tag(false)
+                    Text("SQL").tag(true)
                 }
-                .labelsHidden().frame(width: 160)
-                Picker("Operator", selection: $op) {
-                    ForEach(FilterOperator.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .labelsHidden().frame(width: 150)
-                if op.needsValue {
-                    TextField("Value", text: $value)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .onSubmit(add)
-                }
-                Button("Add Filter", systemImage: "line.3.horizontal.decrease", action: add)
-                    .disabled(column.isEmpty || (op.needsValue && value.isEmpty))
-                if !op.needsValue { Spacer() }
+                .pickerStyle(.segmented).labelsHidden().frame(width: 140)
+                if sqlMode { sqlButtons } else { builder }
             }
-            if !manager.filters.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        ForEach(manager.filters) { filter in
-                            Button { manager.removeFilter(filter) } label: {
-                                Label(filter.label, systemImage: "xmark.circle.fill")
+            if sqlMode {
+                // The whole query, editable. Paging is applied on top automatically.
+                CodeEditor(text: $sqlText, position: $position, messages: $messages, language: .sqlite(),
+                           layout: CodeEditor.LayoutConfiguration(showMinimap: false, wrapText: true))
+                    .environment(\.codeEditorTheme, colorScheme == .dark ? Theme.defaultDark : Theme.defaultLight)
+                    .frame(height: 96)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+            } else {
+                if !manager.filters.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(manager.filters) { filter in
+                                Button { manager.removeFilter(filter) } label: {
+                                    Label(filter.label, systemImage: "xmark.circle.fill")
+                                }
+                                .buttonStyle(.bordered).controlSize(.small)
                             }
-                            .buttonStyle(.bordered).controlSize(.small)
                         }
                     }
                 }
+                Text(manager.queryPreview)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
             }
         }
         .padding(8)
         .onAppear(perform: resetColumn)
-        .onChange(of: manager.selectedTable?.name) { resetColumn() }
+        .onChange(of: manager.selectedTable?.name) { resetColumn(); sqlMode = false; sqlText = "" }
+        .onChange(of: sqlMode) { _, isSQL in
+            if isSQL {
+                // Start from whatever the builder is showing right now.
+                sqlText = manager.generatedQuery
+            } else if manager.rawQuery != nil {
+                manager.setRawQuery(nil)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var builder: some View {
+        Picker("Column", selection: $column) {
+            ForEach(manager.selectedTable?.columns ?? []) { Text($0.name).tag($0.name) }
+        }
+        .labelsHidden().frame(width: 160)
+        Picker("Operator", selection: $op) {
+            ForEach(FilterOperator.allCases) { Text($0.rawValue).tag($0) }
+        }
+        .labelsHidden().frame(width: 150)
+        if op.needsValue {
+            PlainTextField(text: $value, placeholder: "Value", onSubmit: add)
+        }
+        Menu {
+            ForEach(manager.selectedTable?.columns ?? []) { col in
+                Toggle(col.name, isOn: Binding(
+                    get: { manager.isColumnSelected(col.name) },
+                    set: { manager.setColumn(col.name, selected: $0) }))
+            }
+            Divider()
+            Button("Show All") { manager.showAllColumns() }
+        } label: {
+            let total = manager.selectedTable?.columns.count ?? 0
+            Label(manager.columnList.map { "Columns \($0.count)/\(total)" } ?? "Columns", systemImage: "checklist")
+        }
+        .fixedSize()
+        Button("Add Filter", systemImage: "line.3.horizontal.decrease", action: add)
+            .disabled(column.isEmpty || (op.needsValue && value.isEmpty))
+        if !op.needsValue { Spacer() }
+    }
+
+    @ViewBuilder
+    private var sqlButtons: some View {
+        Button("Run", systemImage: "play.fill") { manager.setRawQuery(sqlText) }
+            .keyboardShortcut(.return, modifiers: .command)
+        Button("Reset") { manager.setRawQuery(nil); sqlText = manager.generatedQuery }
+        Text("Read-only · paging and header sorting apply on top")
+            .font(.caption).foregroundStyle(.secondary)
+        Spacer()
     }
 
     private func resetColumn() { column = manager.selectedTable?.columns.first?.name ?? "" }
