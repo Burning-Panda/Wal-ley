@@ -1,32 +1,30 @@
-//
-//  wal_leyApp.swift
-//  wal-ley
-//
-//  Created by André Tørlen Lønvik on 12/10/2026.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct wal_leyApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @State private var manager = DatabaseManager()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(manager: manager)
         }
-        .modelContainer(sharedModelContainer)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("Open…") { manager.showOpenPanel = true }
+                    .keyboardShortcut("o")
+            }
+            CommandGroup(replacing: .saveItem) {
+                Button("Save Changes") { Task { await manager.saveChanges() } }
+                    .keyboardShortcut("s")
+                    .disabled(manager.pendingChanges.isEmpty)
+                Button("Discard Changes") { manager.discardChanges() }
+                    .disabled(manager.pendingChanges.isEmpty)
+            }
+            CommandMenu("Query") {
+                Button("SQL Console") { manager.selection = .console }
+                    .keyboardShortcut("k")
+                    .disabled(!manager.isOpen)
+            }
+        }
     }
 }

@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AA0000000000000000000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000011 /* GRDB */; };
+		AA0000000000000000000002 /* CodeEditorView in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000012 /* CodeEditorView */; };
+		AA0000000000000000000003 /* LanguageSupport in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000013 /* LanguageSupport */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		07CB85BE307D889E00C5204E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +58,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA0000000000000000000001 /* GRDB in Frameworks */,
+				AA0000000000000000000002 /* CodeEditorView in Frameworks */,
+				AA0000000000000000000003 /* LanguageSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +121,9 @@
 			);
 			name = "wal-ley";
 			packageProductDependencies = (
+				AA0000000000000000000011 /* GRDB */,
+				AA0000000000000000000012 /* CodeEditorView */,
+				AA0000000000000000000013 /* LanguageSupport */,
 			);
 			productName = "wal-ley";
 			productReference = 07CB85AE307D889D00C5204E /* wal-ley.app */;
@@ -195,6 +207,10 @@
 			);
 			mainGroup = 07CB85A5307D889D00C5204E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA0000000000000000000021 /* XCRemoteSwiftPackageReference "GRDB" */,
+				AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 07CB85AF307D889D00C5204E /* Products */;
 			projectDirPath = "";
@@ -395,7 +411,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -425,7 +441,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -563,6 +579,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA0000000000000000000021 /* XCRemoteSwiftPackageReference "GRDB" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.9.0;
+			};
+		};
+		AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mchakravarty/CodeEditorView";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.16.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0000000000000000000011 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000021 /* XCRemoteSwiftPackageReference "GRDB" */;
+			productName = GRDB;
+		};
+		AA0000000000000000000012 /* CodeEditorView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
+			productName = CodeEditorView;
+		};
+		AA0000000000000000000013 /* LanguageSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
+			productName = LanguageSupport;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 07CB85A6307D889D00C5204E /* Project object */;
 }

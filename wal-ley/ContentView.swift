@@ -1,59 +1,47 @@
-//
-//  ContentView.swift
-//  wal-ley
-//
-//  Created by André Tørlen Lønvik on 12/10/2026.
-//
-
 import SwiftUI
-import SwiftData
+import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Bindable var manager: DatabaseManager
+
+    private static let databaseTypes = ["sqlite", "sqlite3", "db"].compactMap { UTType(filenameExtension: $0) }
 
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
+            SidebarView(manager: manager)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 280)
         } detail: {
-            Text("Select an item")
+            detail
         }
+        .navigationTitle(manager.metadata?.name ?? "wal-ley")
+        .toolbar {
+            Button("Open…", systemImage: "folder") { manager.showOpenPanel = true }
+        }
+        .fileImporter(isPresented: $manager.showOpenPanel, allowedContentTypes: Self.databaseTypes + [.database]) { result in
+            if case .success(let url) = result { Task { await manager.open(url) } }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            Task { await manager.open(url) }
+            return true
+        }
+        .frame(minWidth: 900, minHeight: 560)
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    @ViewBuilder
+    private var detail: some View {
+        if !manager.isOpen {
+            ContentUnavailableView {
+                Label("No database", systemImage: "cylinder")
+            } description: {
+                Text(manager.errorMessage ?? "Open or drop a .sqlite, .sqlite3 or .db file.")
+            }
+        } else {
+            switch manager.selection {
+            case .console: ConsoleView(manager: manager)
+            case .table: TableDataView(manager: manager)
+            case nil: ContentUnavailableView("Select a table", systemImage: "tablecells")
             }
         }
     }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
