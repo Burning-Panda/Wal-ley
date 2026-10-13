@@ -1,0 +1,1 @@
+Modified from https://github.com/mchakravarty/CodeEditorView 0.16.0 (Apache-2.0): shorter completion delay; no auto-closing brackets.

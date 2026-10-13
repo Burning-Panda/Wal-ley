@@ -209,7 +209,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA0000000000000000000021 /* XCRemoteSwiftPackageReference "GRDB" */,
-				AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */,
+				AA0000000000000000000022 /* XCLocalSwiftPackageReference "Packages/CodeEditorView" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 07CB85AF307D889D00C5204E /* Products */;
@@ -580,6 +580,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		AA0000000000000000000022 /* XCLocalSwiftPackageReference "Packages/CodeEditorView" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/CodeEditorView;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		AA0000000000000000000021 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -587,14 +594,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 7.9.0;
-			};
-		};
-		AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/mchakravarty/CodeEditorView";
-			requirement = {
-				kind = upToNextMinorVersion;
-				minimumVersion = 0.16.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -607,12 +606,10 @@
 		};
 		AA0000000000000000000012 /* CodeEditorView */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
 			productName = CodeEditorView;
 		};
 		AA0000000000000000000013 /* LanguageSupport */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA0000000000000000000022 /* XCRemoteSwiftPackageReference "CodeEditorView" */;
 			productName = LanguageSupport;
 		};
 /* End XCSwiftPackageProductDependency section */

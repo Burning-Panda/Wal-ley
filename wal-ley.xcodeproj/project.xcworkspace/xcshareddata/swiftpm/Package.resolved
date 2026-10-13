@@ -1,15 +1,6 @@
 {
-  "originHash" : "86f3b4645cd532ceeaea983ace4b040ba97bf486bb33db1b2902672fd4c66ff0",
+  "originHash" : "b3eee0b37f9c4a63ac54c2c61f58a28f5c74ee6961f5ac9d0bd51277f17ae5f7",
   "pins" : [
-    {
-      "identity" : "codeeditorview",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mchakravarty/CodeEditorView",
-      "state" : {
-        "revision" : "5386056ab53d43363083cb96069715a9608aa048",
-        "version" : "0.16.0"
-      }
-    },
     {
       "identity" : "grdb.swift",
       "kind" : "remoteSourceControl",

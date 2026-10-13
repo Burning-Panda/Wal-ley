@@ -55,6 +55,11 @@ nonisolated struct CellKey: Hashable {
     let column: String
 }
 
+nonisolated struct RowKey: Hashable {
+    let table: String
+    let rowID: Int64
+}
+
 enum FilterOperator: String, CaseIterable, Identifiable {
     case contains = "contains"
     case equals = "equals"
@@ -106,8 +111,11 @@ func sqlQuote(_ identifier: String) -> String {
 enum FuzzyMatch {
     /// Subsequence match. Higher is better; nil means no match.
     static func score(_ query: String, in candidate: String) -> Int? {
-        let q = Array(query.lowercased())
-        let c = Array(candidate.lowercased())
+        score(Array(query.lowercased()), inLowercased: Array(candidate.lowercased()))
+    }
+
+    /// Allocation-free variant for hot paths (autocomplete): both sides already lowercased.
+    static func score(_ q: [Character], inLowercased c: [Character]) -> Int? {
         guard !q.isEmpty else { return 0 }
         var qi = 0, score = 0, previous = -2
         for (ci, ch) in c.enumerated() where qi < q.count && ch == q[qi] {

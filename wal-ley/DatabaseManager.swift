@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Observation
+import AppKit
 
 @MainActor
 @Observable
@@ -30,6 +31,13 @@ final class DatabaseManager {
     private(set) var isEditable = false
     private(set) var isLoading = false
     private(set) var pendingChanges: [CellKey: String] = [:]
+    private(set) var pendingDeletes: Set<RowKey> = []
+    private(set) var recents: [URL] = []
+
+    /// Set while the user is asked what to do with unsaved changes before `action` can run.
+    var unsavedPrompt: (() async -> Void)?
+
+    var pendingCount: Int { pendingChanges.count + pendingDeletes.count }
 
     // Console
     var consoleSQL = "" { didSet { languageService.text = consoleSQL } }
@@ -50,7 +58,48 @@ final class DatabaseManager {
 
     var pageCount: Int { max(1, (totalRows + Self.pageSize - 1) / Self.pageSize) }
 
-    // MARK: Opening
+    init() { refreshRecents() }
+
+    // MARK: Opening / closing
+
+    /// Runs `action` now, or after the user resolves unsaved changes.
+    func guardUnsaved(_ action: @escaping () async -> Void) async {
+        if pendingCount == 0 { await action() } else { unsavedPrompt = action }
+    }
+
+    func requestOpen(_ url: URL) async { await guardUnsaved { await self.open(url) } }
+    func requestClose() async { await guardUnsaved { self.close() } }
+
+    func refreshRecents() {
+        recents = NSDocumentController.shared.recentDocumentURLs
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    func clearRecents() {
+        NSDocumentController.shared.clearRecentDocuments(nil)
+        refreshRecents()
+    }
+
+    func close() {
+        loadTask?.cancel()
+        queue = nil
+        isOpen = false
+        isReadOnly = false
+        metadata = nil
+        tables = []
+        languageService.update(tables: [])
+        grid = GridData()
+        consoleGrid = GridData()
+        consoleStatus = nil
+        consoleError = nil
+        errorMessage = nil
+        totalRows = 0
+        isEditable = false
+        isLoading = false
+        pendingChanges = [:]
+        pendingDeletes = []
+        selection = nil
+    }
 
     func open(_ url: URL) async {
         let scoped = url.startAccessingSecurityScopedResource()
@@ -77,6 +126,7 @@ final class DatabaseManager {
             languageService.update(tables: schema)
             metadata = Self.metadata(for: url)
             pendingChanges = [:]
+            pendingDeletes = []
             grid = GridData()
             consoleGrid = GridData()
             consoleStatus = nil
@@ -84,6 +134,8 @@ final class DatabaseManager {
             errorMessage = nil
             selection = nil
             selection = schema.first.map { .table($0.name) }
+            NSDocumentController.shared.noteNewRecentDocumentURL(url)
+            refreshRecents()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -180,6 +232,12 @@ final class DatabaseManager {
                 totalRows = result.total
                 isEditable = result.editable && !isReadOnly
                 errorMessage = nil
+                // Rows were deleted from the last page: step back.
+                if result.grid.rows.isEmpty, page > 0, result.total > 0 {
+                    self.page = (result.total - 1) / Self.pageSize
+                    reload()
+                    return
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
@@ -256,12 +314,38 @@ final class DatabaseManager {
         pendingChanges[key] = newValue == original ? nil : newValue
     }
 
+    /// Marks rows (by position on the current page) for deletion; applied on Save.
+    func deleteRows(_ rows: IndexSet) {
+        guard isEditable, let table = selectedTable else { return }
+        for row in rows where row < grid.rowIDs.count {
+            let id = grid.rowIDs[row]
+            pendingDeletes.insert(RowKey(table: table.name, rowID: id))
+            pendingChanges = pendingChanges.filter { !($0.key.table == table.name && $0.key.rowID == id) }
+        }
+    }
+
+    func restoreRows(_ rows: IndexSet) {
+        guard let table = selectedTable else { return }
+        for row in rows where row < grid.rowIDs.count {
+            pendingDeletes.remove(RowKey(table: table.name, rowID: grid.rowIDs[row]))
+        }
+    }
+
+    func isDeleted(row: Int) -> Bool {
+        guard let table = selectedTable, row < grid.rowIDs.count else { return false }
+        return pendingDeletes.contains(RowKey(table: table.name, rowID: grid.rowIDs[row]))
+    }
+
     func saveChanges() async {
-        guard let queue, !pendingChanges.isEmpty else { return }
+        guard let queue, pendingCount > 0 else { return }
         let changes = pendingChanges
+        let deletes = pendingDeletes
         do {
             // One transaction: either every change lands or none does.
             try await queue.write { db in
+                for key in deletes {
+                    try db.execute(sql: "DELETE FROM \(sqlQuote(key.table)) WHERE rowid = ?", arguments: [key.rowID])
+                }
                 for (key, value) in changes {
                     let stored: DatabaseValueConvertible? = value == "NULL" ? nil : value
                     try db.execute(
@@ -270,6 +354,7 @@ final class DatabaseManager {
                 }
             }
             pendingChanges = [:]
+            pendingDeletes = []
             errorMessage = nil
             reload()
         } catch {
@@ -279,6 +364,7 @@ final class DatabaseManager {
 
     func discardChanges() {
         pendingChanges = [:]
+        pendingDeletes = []
     }
 
     // MARK: Console

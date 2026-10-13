@@ -11,11 +11,14 @@ struct TableDataView: View {
                 grid: manager.grid,
                 tableName: manager.selectedTable?.name ?? "",
                 pending: manager.pendingChanges,
+                deleted: manager.pendingDeletes,
                 editable: manager.isEditable,
                 sortable: true,
                 sort: manager.sort,
                 onSort: { manager.setSort(column: $0, ascending: $1) },
-                onEdit: { manager.edit(row: $0, column: $1, newValue: $2) })
+                onEdit: { manager.edit(row: $0, column: $1, newValue: $2) },
+                onDelete: { manager.deleteRows($0) },
+                onRestore: { manager.restoreRows($0) })
             Divider()
             FooterBar(manager: manager)
         }
@@ -94,8 +97,8 @@ private struct FooterBar: View {
                 Text(error).foregroundStyle(.red).lineLimit(1).help(error)
             }
             Spacer()
-            if !manager.pendingChanges.isEmpty {
-                Text("\(manager.pendingChanges.count) unsaved").foregroundStyle(.orange)
+            if manager.pendingCount > 0 {
+                Text("\(manager.pendingCount) unsaved").foregroundStyle(.orange)
                 Button("Discard") { manager.discardChanges() }
                 Button("Save") { Task { await manager.saveChanges() } }
                     .buttonStyle(.borderedProminent)

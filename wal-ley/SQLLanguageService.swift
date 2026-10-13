@@ -8,6 +8,14 @@ final class SQLLanguageService: LanguageService {
         let name: String
         let kind: String
         let detail: String
+        let lowered: [Character]
+
+        init(name: String, kind: String, detail: String) {
+            self.name = name
+            self.kind = kind
+            self.detail = detail
+            self.lowered = Array(name.lowercased())
+        }
     }
 
     // Completions are requested off the main actor, so shared state sits behind a lock.
@@ -60,17 +68,17 @@ final class SQLLanguageService: LanguageService {
         guard !partial.isEmpty else { return .none }
 
         let all = lock.withLock { schemaCandidates } + lock.withLock { _candidates }
-        var seen = Set<String>()
+        var seen = Set<[Character]>()
+        let query = Array(partial.lowercased())
         let ranked = all.compactMap { candidate -> (Candidate, Int)? in
-            let key = candidate.name.lowercased()
             // Skip exact matches (nothing to complete) and names already listed.
-            guard key != partial.lowercased(), !seen.contains(key),
-                  let score = FuzzyMatch.score(partial, in: candidate.name) else { return nil }
-            seen.insert(key)
+            guard candidate.lowered != query, !seen.contains(candidate.lowered),
+                  let score = FuzzyMatch.score(query, inLowercased: candidate.lowered) else { return nil }
+            seen.insert(candidate.lowered)
             return (candidate, score)
         }
         .sorted { $0.1 > $1.1 }
-        .prefix(30)
+        .prefix(12)
 
         let items = ranked.enumerated().map { index, entry -> Completions.Completion in
             let candidate = entry.0
