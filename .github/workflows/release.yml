@@ -9,25 +9,59 @@ jobs:
     runs-on: macos-26
     permissions:
       contents: write
+    env:
+      # Optional. When all are set the app is signed with a Developer ID and
+      # notarized, so it opens on any Mac. Otherwise it is ad-hoc signed and
+      # users must clear the quarantine flag (see README).
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+      NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+      NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
-      - name: Build
+      - name: Build (universal)
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           xcodebuild -project wal-ley.xcodeproj -scheme wal-ley -configuration Release \
-            -destination 'platform=macOS' -derivedDataPath build \
+            -destination 'generic/platform=macOS' -derivedDataPath build \
             -skipPackagePluginValidation -skipMacroValidation \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build
+          lipo -archs build/Build/Products/Release/wal-ley.app/Contents/MacOS/wal-ley
+
+      - name: Sign
+        run: |
+          APP=build/Build/Products/Release/wal-ley.app
+          if [ -n "$MACOS_CERT_P12" ] && [ -n "$NOTARY_APPLE_ID" ]; then
+            KC="$RUNNER_TEMP/build.keychain-db"; KC_PASS="$(uuidgen)"
+            echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+            security create-keychain -p "$KC_PASS" "$KC"
+            security set-keychain-settings -lut 21600 "$KC"
+            security unlock-keychain -p "$KC_PASS" "$KC"
+            security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$KC_PASS" "$KC"
+            security list-keychains -d user -s "$KC" login.keychain-db
+            IDENTITY="$(security find-identity -v -p codesigning "$KC" | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.+)"/\1/')"
+            codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" "$APP"
+            ditto -c -k --keepParent "$APP" notarize.zip
+            xcrun notarytool submit notarize.zip --apple-id "$NOTARY_APPLE_ID" \
+              --password "$NOTARY_PASSWORD" --team-id "$NOTARY_TEAM_ID" --wait
+            xcrun stapler staple "$APP"
+            echo "NOTARIZED=1" >> "$GITHUB_ENV"
+          else
+            codesign --force --deep --sign - "$APP"
+          fi
+          codesign --verify --deep --strict --verbose=2 "$APP"
 
       - name: Package
         run: |
           APP=build/Build/Products/Release/wal-ley.app
-          codesign --force --deep --sign - "$APP"
           NAME="wal-ley-${GITHUB_REF_NAME}"
           ditto -c -k --keepParent "$APP" "$NAME.zip"
           mkdir dmg && cp -R "$APP" dmg/ && ln -s /Applications dmg/Applications
@@ -38,5 +72,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Annotated tag message written by scripts/release.sh
+          git for-each-ref "refs/tags/$GITHUB_REF_NAME" --format='%(contents)' > notes.md
+          if [ "$NOTARIZED" != "1" ]; then
+            {
+              echo
+              echo '> **Unsigned build.** macOS may say the app "is damaged" or "can'"'"'t be opened".'
+              echo '> After copying it to Applications, run once:'
+              echo '> `xattr -dr com.apple.quarantine /Applications/wal-ley.app`'
+            } >> notes.md
+          fi
           gh release create "$GITHUB_REF_NAME" wal-ley-*.zip wal-ley-*.dmg SHA256SUMS.txt \
-            --generate-notes --verify-tag
+            --generate-notes --notes-file notes.md --verify-tag

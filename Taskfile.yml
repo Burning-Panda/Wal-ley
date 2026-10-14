@@ -1,0 +1,27 @@
+version: "3"
+
+# task bump-patch NOTES="Fixes crash when opening empty databases"
+vars:
+  NOTES: '{{.NOTES | default ""}}'
+
+tasks:
+  version:
+    desc: Print the current version
+    silent: true
+    cmds:
+      - cat VERSION
+
+  bump-major:
+    desc: Bump major, tag, push and release
+    cmds:
+      - scripts/release.sh major "{{.NOTES}}"
+
+  bump-minor:
+    desc: Bump minor, tag, push and release
+    cmds:
+      - scripts/release.sh minor "{{.NOTES}}"
+
+  bump-patch:
+    desc: Bump patch, tag, push and release
+    cmds:
+      - scripts/release.sh patch "{{.NOTES}}"
