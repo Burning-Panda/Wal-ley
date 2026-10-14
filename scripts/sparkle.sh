@@ -33,9 +33,13 @@ plist_key() { /usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$PLIST" 2>/dev/
 keychain_key() { "$BIN/generate_keys" -p 2>/dev/null || true; }
 
 upload() {
-  local f; f="$(mktemp)"; trap 'rm -f "$f"' RETURN
-  "$BIN/generate_keys" -x "$f"
-  gh secret set "$SECRET" < "$f"
+  # generate_keys -x refuses to overwrite, so export into a fresh directory.
+  local d; d="$(mktemp -d /tmp/wal-ley-sparkle.XXXXXX)"
+  if "$BIN/generate_keys" -x "$d/key" && gh secret set "$SECRET" < "$d/key"; then
+    rm -rf "$d"
+  else
+    rm -rf "$d"; return 1
+  fi
 }
 
 BIN="$(tools)"
