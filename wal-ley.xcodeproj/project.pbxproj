@@ -10,6 +10,7 @@
 		AA0000000000000000000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000011 /* GRDB */; };
 		AA0000000000000000000002 /* CodeEditorView in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000012 /* CodeEditorView */; };
 		AA0000000000000000000003 /* LanguageSupport in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000013 /* LanguageSupport */; };
+		AA0000000000000000000004 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000014 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +75,7 @@
 				AA0000000000000000000001 /* GRDB in Frameworks */,
 				AA0000000000000000000002 /* CodeEditorView in Frameworks */,
 				AA0000000000000000000003 /* LanguageSupport in Frameworks */,
+				AA0000000000000000000004 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -137,6 +139,7 @@
 				AA0000000000000000000011 /* GRDB */,
 				AA0000000000000000000012 /* CodeEditorView */,
 				AA0000000000000000000013 /* LanguageSupport */,
+				AA0000000000000000000014 /* Sparkle */,
 			);
 			productName = "wal-ley";
 			productReference = 07CB85AE307D889D00C5204E /* wal-ley.app */;
@@ -222,6 +225,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA0000000000000000000021 /* XCRemoteSwiftPackageReference "GRDB" */,
+				AA0000000000000000000023 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				AA0000000000000000000022 /* XCLocalSwiftPackageReference "Packages/CodeEditorView" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -617,6 +621,14 @@
 				minimumVersion = 7.9.0;
 			};
 		};
+		AA0000000000000000000023 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -632,6 +644,11 @@
 		AA0000000000000000000013 /* LanguageSupport */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LanguageSupport;
+		};
+		AA0000000000000000000014 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000023 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

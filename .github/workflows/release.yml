@@ -18,6 +18,9 @@ jobs:
       NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
       NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
       NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+      # Sparkle EdDSA private key (from `generate_keys -x`). Required: updates are
+      # signed with it and the app only accepts updates matching SUPublicEDKey.
+      SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -68,6 +71,32 @@ jobs:
           hdiutil create -volname "wal-ley" -srcfolder dmg -ov -format UDZO "$NAME.dmg"
           shasum -a 256 "$NAME.zip" "$NAME.dmg" > SHA256SUMS.txt
 
+      - name: Sparkle appcast
+        run: |
+          [ -n "$SPARKLE_ED_PRIVATE_KEY" ] || { echo "SPARKLE_ED_PRIVATE_KEY secret is not set" >&2; exit 1; }
+          NAME="wal-ley-${GITHUB_REF_NAME}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          SIGN=$(find build/SourcePackages/artifacts -path '*bin/sign_update' -not -path '*old_dsa*' | head -1)
+          SIG=$(echo "$SPARKLE_ED_PRIVATE_KEY" | "$SIGN" --ed-key-file - "$NAME.zip")
+          cat > appcast.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>wal-ley</title>
+              <item>
+                <title>Version $VERSION</title>
+                <pubDate>$(date -u +"%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+                <sparkle:version>$GITHUB_RUN_NUMBER</sparkle:version>
+                <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>26.5</sparkle:minimumSystemVersion>
+                <sparkle:releaseNotesLink>https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}</sparkle:releaseNotesLink>
+                <enclosure url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$NAME.zip"
+                           type="application/octet-stream" $SIG/>
+              </item>
+            </channel>
+          </rss>
+          EOF
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -82,5 +111,5 @@ jobs:
               echo '> `xattr -dr com.apple.quarantine /Applications/wal-ley.app`'
             } >> notes.md
           fi
-          gh release create "$GITHUB_REF_NAME" wal-ley-*.zip wal-ley-*.dmg SHA256SUMS.txt \
+          gh release create "$GITHUB_REF_NAME" wal-ley-*.zip wal-ley-*.dmg SHA256SUMS.txt appcast.xml \
             --generate-notes --notes-file notes.md --verify-tag

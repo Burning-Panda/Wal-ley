@@ -13,15 +13,34 @@ tasks:
 
   bump-major:
     desc: Bump major, tag, push and release
+    deps: [update-check]
     cmds:
       - scripts/release.sh major "{{.NOTES}}"
 
   bump-minor:
     desc: Bump minor, tag, push and release
+    deps: [update-check]
     cmds:
       - scripts/release.sh minor "{{.NOTES}}"
 
   bump-patch:
     desc: Bump patch, tag, push and release
+    deps: [update-check]
     cmds:
       - scripts/release.sh patch "{{.NOTES}}"
+
+
+  update-setup:
+    desc: One-time Sparkle setup (key, Info.plist, GitHub secret); safe to re-run
+    cmds:
+      - scripts/sparkle.sh setup
+
+  update-check:
+    desc: Verify the Sparkle key and GitHub secret are ready for a release
+    cmds:
+      - scripts/sparkle.sh check
+
+  update-key-backup:
+    desc: Export the Sparkle private key (task update-key-backup FILE=path)
+    cmds:
+      - scripts/sparkle.sh backup "{{.FILE}}"

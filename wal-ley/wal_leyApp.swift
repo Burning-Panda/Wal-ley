@@ -1,8 +1,11 @@
 import SwiftUI
+import Sparkle
 
 @main
 struct wal_leyApp: App {
     @State private var manager = DatabaseManager()
+    private let updater = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     var body: some Scene {
         WindowGroup {
@@ -10,6 +13,9 @@ struct wal_leyApp: App {
         }
         .handlesExternalEvents(matching: ["*"])
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { updater.checkForUpdates(nil) }
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Open…") { manager.showOpenPanel = true }
                     .keyboardShortcut("o")

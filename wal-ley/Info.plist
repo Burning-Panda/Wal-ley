@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>SUFeedURL</key>
+	<string>https://github.com/Burning-Panda/Wal-ley/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>+uzWpBkYnHs3ba0M7h35vipOQqgTns5wgMUD0gNZM+s=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

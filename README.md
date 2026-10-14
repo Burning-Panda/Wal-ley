@@ -22,6 +22,12 @@ xattr -dr com.apple.quarantine /Applications/wal-ley.app
 
 Open `wal-ley.xcodeproj` in Xcode and run. Needs macOS 14 or later.
 
+## Updates
+
+wal-ley updates itself with [Sparkle](https://sparkle-project.org). It checks `appcast.xml` from the latest GitHub release, and you can trigger a check from **wal-ley → Check for Updates…**. Updates replace the app in place and are verified with an EdDSA signature. Versions before 1.0.4 have no updater and need one manual install.
+
+Maintainer setup (once): run `task update-setup`. It creates the signing key if needed, checks it against `SUPublicEDKey` in `wal-ley/Info.plist`, and uploads it as the repo secret `SPARKLE_ED_PRIVATE_KEY` (needs `gh` logged in). Then run `task update-key-backup FILE=<path outside the repo>` and keep that file safe: losing the key means existing installs can no longer be updated. `task bump-*` runs `task update-check` first and stops if anything is missing.
+
 ## Release
 
 The version lives in `VERSION`. From a clean, up-to-date `main`:
