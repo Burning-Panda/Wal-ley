@@ -12,7 +12,7 @@ A simple macOS app for looking at and editing SQLite files.
 
 Download the `.dmg` from the Releases page and drag wal-ley to Applications.
 
-Releases are not notarized unless the maintainer has set up an Apple Developer ID, so macOS may say the app "is damaged" or "can't be opened". The file is fine; macOS is blocking a download it can't verify. Clear the flag once:
+Releases are not notarized unless the maintainer has set up an Apple Developer ID, so macOS may say the app "is damaged" or "can't be opened". The file is fine; macOS is blocking a download it can't verify. If you see "Apple could not verify "wal-ley" is free of malware", clear the flag once, then open the app again:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/wal-ley.app
@@ -20,7 +20,16 @@ xattr -dr com.apple.quarantine /Applications/wal-ley.app
 
 ## Build
 
-Open `wal-ley.xcodeproj` in Xcode and run. Needs macOS 14 or later.
+Open `wal-ley.xcodeproj` in Xcode and run, or build and launch from the terminal:
+
+```bash
+xcodebuild -project wal-ley.xcodeproj -scheme wal-ley -configuration Release \
+  -derivedDataPath .build/app -skipPackagePluginValidation -skipMacroValidation \
+  CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO build \
+  && open .build/app/Build/Products/Release/wal-ley.app
+```
+
+Needs macOS 26.5 or later.
 
 ## Updates
 
