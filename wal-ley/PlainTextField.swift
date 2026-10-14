@@ -6,18 +6,31 @@ struct PlainTextField: NSViewRepresentable {
     @Binding var text: String
     var placeholder = ""
     var monospaced = false
+    /// Off for cells in a grid: no bezel or background, just the text.
+    var bordered = true
+    var focusOnAppear = false
     var onSubmit: () -> Void = {}
 
     func makeNSView(context: Context) -> NSTextField {
         let field = NSTextField()
         field.delegate = context.coordinator
         field.placeholderString = placeholder
-        field.bezelStyle = .roundedBezel
+        if bordered {
+            field.bezelStyle = .roundedBezel
+        } else {
+            field.isBordered = false
+            field.isBezeled = false
+            field.drawsBackground = false
+            field.focusRingType = .none
+        }
         field.usesSingleLineMode = true
         field.cell?.isScrollable = true
         field.lineBreakMode = .byClipping
         field.font = monospaced ? .monospacedSystemFont(ofSize: 12, weight: .regular) : .systemFont(ofSize: 13)
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        if focusOnAppear {
+            DispatchQueue.main.async { field.window?.makeFirstResponder(field) }
+        }
         return field
     }
 

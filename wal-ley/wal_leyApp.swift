@@ -8,8 +8,10 @@ struct wal_leyApp: App {
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     var body: some Scene {
+        // Kept to one window (see SingleWindow): everything shares one DatabaseManager.
         WindowGroup {
             ContentView(manager: manager)
+                .background(SingleWindow())
         }
         .handlesExternalEvents(matching: ["*"])
         .commands {
@@ -17,6 +19,11 @@ struct wal_leyApp: App {
                 Button("Check for Updates…") { updater.checkForUpdates(nil) }
             }
             CommandGroup(replacing: .newItem) {
+                Button("New Database…") { Task { await manager.requestNewDatabase() } }
+                    .keyboardShortcut("n")
+                Button("New Table…") { manager.showNewTable = true }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                    .disabled(!manager.isOpen || manager.isReadOnly)
                 Button("Open…") { manager.showOpenPanel = true }
                     .keyboardShortcut("o")
                 Menu("Open Recent") {

@@ -15,8 +15,16 @@ struct ContentView: View {
         }
         .navigationTitle(manager.metadata?.name ?? "wal-ley")
         .toolbar {
-            Button("Open…", systemImage: "folder") { manager.showOpenPanel = true }
-            Button("Close Database", systemImage: "eject") { Task { await manager.requestClose() } }
+            ShortcutButton("New Database…", systemImage: "doc.badge.plus",
+                           help: "Create a new, empty database file", shortcuts: KeyboardShortcut("n")) {
+                Task { await manager.requestNewDatabase() }
+            }
+            ShortcutButton("Open…", systemImage: "folder",
+                           help: "Open a database file", shortcuts: KeyboardShortcut("o")) { manager.showOpenPanel = true }
+            ShortcutButton("Close Database", systemImage: "eject", help: "Close the open database",
+                           shortcuts: KeyboardShortcut("w", modifiers: [.command, .shift])) {
+                Task { await manager.requestClose() }
+            }
                 .disabled(!manager.isOpen)
         }
         .confirmationDialog("You have unsaved changes", isPresented: unsavedBinding, titleVisibility: .visible) {
@@ -35,6 +43,16 @@ struct ContentView: View {
             return true
         }
         .onOpenURL { url in Task { await manager.requestOpen(url) } }
+        // Files opened from outside land in this window instead of a new one: every window would share the
+        // one DatabaseManager, sheets included.
+        .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
+        .onAppear {
+            ShortcutHints.shared.start()
+            // `-open <path>` on the command line opens a database at launch; the UI tests rely on it.
+            if let path = UserDefaults.standard.string(forKey: "open"), !manager.isOpen {
+                Task { await manager.requestOpen(URL(fileURLWithPath: path)) }
+            }
+        }
         .frame(minWidth: 900, minHeight: 560)
     }
 
@@ -60,6 +78,11 @@ struct ContentView: View {
                     Label("No database", systemImage: "cylinder")
                 } description: {
                     Text(manager.errorMessage ?? "Open or drop a .sqlite, .sqlite3 or .db file.")
+                } actions: {
+                    HStack {
+                        Button("Create New Database…") { Task { await manager.requestNewDatabase() } }
+                        Button("Open…") { manager.showOpenPanel = true }
+                    }
                 }
                 if !manager.recents.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
@@ -79,6 +102,15 @@ struct ContentView: View {
             switch manager.selection {
             case .console: ConsoleView(manager: manager)
             case .table: TableDataView(manager: manager)
+            case nil where manager.tables.isEmpty:
+                ContentUnavailableView {
+                    Label("No tables yet", systemImage: "tablecells")
+                } description: {
+                    Text("This database has no tables yet.")
+                } actions: {
+                    Button("New Table…") { manager.showNewTable = true }
+                        .disabled(manager.isReadOnly)
+                }
             case nil: ContentUnavailableView("Select a table", systemImage: "tablecells")
             }
         }

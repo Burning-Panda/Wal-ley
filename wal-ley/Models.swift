@@ -6,6 +6,7 @@ nonisolated struct SchemaColumn: Identifiable, Hashable {
     let type: String
     let notNull: Bool
     let primaryKey: Bool
+    let defaultValue: String?
 }
 
 nonisolated struct SchemaIndex: Identifiable, Hashable {
@@ -13,6 +14,8 @@ nonisolated struct SchemaIndex: Identifiable, Hashable {
     let name: String
     let unique: Bool
     let columns: [String]
+    /// Created by a UNIQUE or PRIMARY KEY constraint rather than CREATE INDEX.
+    let isConstraint: Bool
 }
 
 nonisolated struct SchemaTable: Identifiable, Hashable {
@@ -21,6 +24,99 @@ nonisolated struct SchemaTable: Identifiable, Hashable {
     let isView: Bool
     let columns: [SchemaColumn]
     let indexes: [SchemaIndex]
+}
+
+/// Declared types offered when creating or retyping a column; any other declared type is kept as written.
+nonisolated enum ColumnType: String, CaseIterable, Identifiable {
+    case text = "TEXT"
+    case integer = "INTEGER"
+    case real = "REAL"
+    case numeric = "NUMERIC"
+    case blob = "BLOB"
+
+    var id: String { rawValue }
+}
+
+/// What the structure editor lets you set on a column.
+nonisolated struct ColumnSpec: Hashable, Sendable {
+    var name = ""
+    var type = ColumnType.text.rawValue
+    var primaryKey = false
+    var notNull = false
+    var unique = false
+    /// SQL as stored, e.g. `'abc'` or `0`. Empty means no default.
+    var defaultValue = ""
+
+    /// Default as SQL: numbers, keywords, quoted strings and parenthesised expressions as typed, anything else
+    /// as a text literal.
+    var defaultSQL: String? {
+        let value = defaultValue.trimmingCharacters(in: .whitespaces)
+        guard !value.isEmpty else { return nil }
+        let keywords: Set = ["NULL", "TRUE", "FALSE", "CURRENT_TIME", "CURRENT_DATE", "CURRENT_TIMESTAMP"]
+        let verbatim = Double(value) != nil || keywords.contains(value.uppercased())
+            || (value.count > 1 && value.hasPrefix("'") && value.hasSuffix("'"))
+            || (value.hasPrefix("(") && value.hasSuffix(")"))
+        return verbatim ? value : sqlLiteral(value)
+    }
+}
+
+/// One row of the structure editor, staged until Save.
+nonisolated struct ColumnDraft: Identifiable, Hashable, Sendable {
+    let id = UUID()
+    var spec: ColumnSpec
+    /// As loaded from the database; nil for a column added in the editor.
+    let original: ColumnSpec?
+    var deleted = false
+
+    var isNew: Bool { original == nil }
+    var isChanged: Bool { original.map { $0 != spec } ?? false }
+}
+
+/// The structure editor's state: a new table when `original` is nil, otherwise edits to that table.
+nonisolated struct TableDraft: Equatable, Sendable {
+    var name = ""
+    var original: String?
+    var columns: [ColumnDraft] = []
+
+    var live: [ColumnDraft] { columns.filter { !$0.deleted } }
+
+    init() {
+        columns = [ColumnDraft(spec: ColumnSpec(name: "id", type: ColumnType.integer.rawValue, primaryKey: true), original: nil)]
+    }
+
+    init(_ table: SchemaTable) {
+        name = table.name
+        original = table.name
+        columns = table.columns.map { column in
+            let unique = table.indexes.contains { $0.isConstraint && $0.unique && $0.columns == [column.name] }
+            let spec = ColumnSpec(
+                name: column.name,
+                // Standard types are matched case-insensitively; anything else is kept as declared.
+                type: ColumnType(rawValue: column.type.uppercased())?.rawValue ?? column.type,
+                primaryKey: column.primaryKey, notNull: column.notNull, unique: unique,
+                defaultValue: column.defaultValue ?? "")
+            return ColumnDraft(spec: spec, original: spec)
+        }
+    }
+
+    var hasChanges: Bool {
+        original == nil || name != original || columns.contains { $0.deleted || $0.isNew || $0.isChanged }
+    }
+
+    /// Why the draft can't be saved yet, if it can't.
+    var problem: String? {
+        if name.trimmingCharacters(in: .whitespaces).isEmpty { return "Name the table." }
+        if live.isEmpty { return "A table needs at least one column." }
+        if live.contains(where: { $0.spec.name.trimmingCharacters(in: .whitespaces).isEmpty }) { return "Every column needs a name." }
+        let names = live.map { $0.spec.name.lowercased() }
+        if Set(names).count != names.count { return "Column names must be unique." }
+        return nil
+    }
+}
+
+nonisolated struct SchemaError: LocalizedError {
+    let errorDescription: String?
+    init(_ message: String) { errorDescription = message }
 }
 
 nonisolated struct FileMetadata {

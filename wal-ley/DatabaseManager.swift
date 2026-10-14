@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import Observation
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -12,6 +13,8 @@ final class DatabaseManager {
     // MARK: State
 
     var showOpenPanel = false
+    /// Opens the structure editor for a new table.
+    var showNewTable = false
     private(set) var isOpen = false
     private(set) var isReadOnly = false
     private(set) var metadata: FileMetadata?
@@ -52,6 +55,7 @@ final class DatabaseManager {
     let languageService = SQLLanguageService()
 
     @ObservationIgnored private var queue: DatabaseQueue?
+    @ObservationIgnored private var openURL: URL?
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var versionCounter = 0
 
@@ -109,6 +113,45 @@ final class DatabaseManager {
 
     func requestOpen(_ url: URL) async { await guardUnsaved { await self.open(url) } }
     func requestClose() async { await guardUnsaved { self.close() } }
+    func requestNewDatabase() async { await guardUnsaved { await self.chooseNewDatabaseLocation() } }
+
+    private func chooseNewDatabaseLocation() async {
+        let panel = NSSavePanel()
+        panel.title = "New Database"
+        panel.prompt = "Create"
+        panel.nameFieldStringValue = "Untitled.sqlite"
+        panel.allowedContentTypes = [UTType(filenameExtension: "sqlite") ?? .database]
+        panel.canCreateDirectories = true
+        // The panel asks before replacing an existing file.
+        let response = if let window = NSApp.keyWindow { await panel.beginSheetModal(for: window) } else { panel.runModal() }
+        guard response == .OK, let url = panel.url else { return }
+        await createDatabase(at: url)
+    }
+
+    /// Creates an empty database at `url` and opens it. A file already there goes to the Trash.
+    func createDatabase(at url: URL) async {
+        let files = FileManager.default
+        // A leftover WAL from an earlier database at this path could be replayed into the new one.
+        for suffix in ["-wal", "-shm"] where files.fileExists(atPath: url.path + suffix) {
+            errorMessage = "Couldn't create “\(url.lastPathComponent)”: “\(url.lastPathComponent + suffix)” is next to it "
+                + "and could corrupt the new database. Move it away or choose another name."
+            return
+        }
+        do {
+            if files.fileExists(atPath: url.path) {
+                if openURL?.standardizedFileURL == url.standardizedFileURL { close() }
+                try files.trashItem(at: url, resultingItemURL: nil)
+            }
+            // A write makes SQLite put its header in the file; an empty file isn't recognised as a database.
+            let queue = try DatabaseQueue(path: url.path)
+            try await queue.write { try $0.execute(sql: "PRAGMA user_version = 0") }
+            try queue.close()
+        } catch {
+            errorMessage = "Couldn't create “\(url.lastPathComponent)”: \(error.localizedDescription)"
+            return
+        }
+        await requestOpen(url)
+    }
 
     func refreshRecents() {
         recents = NSDocumentController.shared.recentDocumentURLs
@@ -123,6 +166,7 @@ final class DatabaseManager {
     func close() {
         loadTask?.cancel()
         queue = nil
+        openURL = nil
         isOpen = false
         isReadOnly = false
         metadata = nil
@@ -160,6 +204,7 @@ final class DatabaseManager {
 
             loadTask?.cancel()
             self.queue = queue
+            openURL = url
             isOpen = true
             isReadOnly = readOnly
             tables = schema
@@ -202,10 +247,11 @@ final class DatabaseManager {
                 let name: String = row["name"]
                 let type: String = row["type"]
                 let columns = try db.columns(in: name).map {
-                    SchemaColumn(name: $0.name, type: $0.type, notNull: $0.isNotNull, primaryKey: $0.primaryKeyIndex > 0)
+                    SchemaColumn(name: $0.name, type: $0.type, notNull: $0.isNotNull, primaryKey: $0.primaryKeyIndex > 0,
+                                 defaultValue: $0.defaultValueSQL)
                 }
                 let indexes = ((try? db.indexes(on: name)) ?? []).map {
-                    SchemaIndex(name: $0.name, unique: $0.isUnique, columns: $0.columns)
+                    SchemaIndex(name: $0.name, unique: $0.isUnique, columns: $0.columns, isConstraint: $0.origin != .createIndex)
                 }
                 return SchemaTable(name: name, isView: type == "view", columns: columns, indexes: indexes)
             }
@@ -422,6 +468,205 @@ final class DatabaseManager {
     func discardChanges() {
         pendingChanges = [:]
         pendingDeletes = []
+    }
+
+    // MARK: Schema editing
+
+    /// Drops a table, or a view when `name` is one.
+    func deleteTable(_ name: String) async throws {
+        let isView = tables.first { $0.name == name }?.isView ?? false
+        try await alterSchema(of: name) { db in
+            try db.execute(sql: "DROP \(isView ? "VIEW" : "TABLE") \(sqlQuote(name))")
+        }
+    }
+
+    /// Applies the structure editor's draft in one transaction: creates the table, or alters it to match.
+    func saveStructure(_ draft: TableDraft) async throws {
+        if let problem = draft.problem { throw SchemaError(problem) }
+        var draft = draft
+        draft.name = draft.name.trimmingCharacters(in: .whitespaces)
+        for i in draft.columns.indices { draft.columns[i].spec.name = draft.columns[i].spec.name.trimmingCharacters(in: .whitespaces) }
+        let final = draft
+        try await alterSchema(of: draft.original ?? draft.name, renamedTo: draft.name) { db in
+            if final.original == nil {
+                try db.execute(sql: Self.createSQL(final))
+            } else {
+                try Self.withForeignKeysOff(db) {
+                    try db.inTransaction {
+                        try Self.alter(db, to: final)
+                        return .commit
+                    }
+                }
+            }
+        }
+    }
+
+    nonisolated private static func createSQL(_ draft: TableDraft) -> String {
+        var definition = TableDefinition()
+        for column in draft.live { definition.insertColumn(columnSQL(column.spec)) }
+        setPrimaryKey(&definition, draft.live.filter(\.spec.primaryKey).map(\.spec.name))
+        return definition.createSQL(name: draft.name)
+    }
+
+    /// A new column's definition. The primary key is placed separately since it may span columns.
+    nonisolated private static func columnSQL(_ spec: ColumnSpec) -> String {
+        var clauses = ColumnClauses(name: sqlQuote(spec.name), type: spec.type)
+        if spec.notNull { clauses.set(.notNull, "NOT NULL") }
+        if spec.unique { clauses.set(.unique, "UNIQUE") }
+        if let value = spec.defaultSQL { clauses.set(.defaultValue, "DEFAULT \(value)") }
+        return clauses.sql
+    }
+
+    /// One column keeps its key inline (so INTEGER stays a rowid alias); several get a table constraint.
+    nonisolated private static func setPrimaryKey(_ definition: inout TableDefinition, _ columns: [String]) {
+        for name in definition.columnNames { definition.update(column: name) { $0.set(.primaryKey, nil) } }
+        definition.removeTableConstraints(.primaryKey)
+        if columns.count == 1 {
+            definition.update(column: columns[0]) { $0.set(.primaryKey, "PRIMARY KEY") }
+        } else if columns.count > 1 {
+            definition.definitions.append("PRIMARY KEY (\(columns.map(sqlQuote).joined(separator: ", ")))")
+        }
+    }
+
+    /// Drops, renames and simple additions use ALTER TABLE, which also updates indexes, triggers and views.
+    /// Anything ALTER TABLE can't do (types, constraints, defaults) is applied by one rebuild at the end.
+    nonisolated private static func alter(_ db: Database, to draft: TableDraft) throws {
+        guard let original = draft.original else { return }
+        for column in draft.columns where column.deleted {
+            guard let old = column.original else { continue }
+            try db.execute(sql: "ALTER TABLE \(sqlQuote(original)) DROP COLUMN \(sqlQuote(old.name))")
+        }
+        for column in draft.live {
+            guard let old = column.original, old.name != column.spec.name else { continue }
+            try db.execute(sql: "ALTER TABLE \(sqlQuote(original)) RENAME COLUMN \(sqlQuote(old.name)) TO \(sqlQuote(column.spec.name))")
+        }
+        if draft.name != original {
+            try db.execute(sql: "ALTER TABLE \(sqlQuote(original)) RENAME TO \(sqlQuote(draft.name))")
+        }
+
+        let added = draft.live.filter(\.isNew)
+        let changed = draft.live.filter { column in
+            guard let old = column.original else { return false }
+            var renamed = old
+            renamed.name = column.spec.name
+            return renamed != column.spec
+        }
+        let keyChanged = draft.columns.contains { column in
+            column.deleted ? column.original?.primaryKey == true : column.spec.primaryKey != (column.original?.primaryKey ?? false)
+        }
+        // ADD COLUMN can't add a key or UNIQUE, nor NOT NULL without a default.
+        let needsRebuild = keyChanged || !changed.isEmpty
+            || added.contains { $0.spec.unique || ($0.spec.notNull && $0.spec.defaultSQL == nil) }
+
+        guard needsRebuild else {
+            for column in added {
+                try db.execute(sql: "ALTER TABLE \(sqlQuote(draft.name)) ADD COLUMN \(columnSQL(column.spec))")
+            }
+            return
+        }
+        try rebuild(db, table: draft.name) { definition in
+            for column in changed {
+                let old = column.original!, new = column.spec
+                definition.update(column: new.name) { clauses in
+                    if new.type != old.type { clauses.type = new.type }
+                    if new.notNull != old.notNull { clauses.set(.notNull, new.notNull ? "NOT NULL" : nil) }
+                    if new.unique != old.unique { clauses.set(.unique, new.unique ? "UNIQUE" : nil) }
+                    if new.defaultValue != old.defaultValue { clauses.set(.defaultValue, new.defaultSQL.map { "DEFAULT \($0)" }) }
+                }
+                if old.unique && !new.unique { definition.removeTableConstraints(.unique, columns: [new.name]) }
+            }
+            for column in added { definition.insertColumn(columnSQL(column.spec)) }
+            if keyChanged { setPrimaryKey(&definition, draft.live.filter(\.spec.primaryKey).map(\.spec.name)) }
+        }
+    }
+
+    /// Runs a schema change, then reloads the schema. The open table is reset because its filters, sort and
+    /// column choice may name columns that no longer exist.
+    private func alterSchema(
+        of table: String, renamedTo newName: String? = nil, _ change: @escaping @Sendable (Database) throws -> Void
+    ) async throws {
+        guard let queue, !isReadOnly else { throw SchemaError("The database is read-only.") }
+        try await queue.writeWithoutTransaction { db in
+            try change(db)
+            db.clearSchemaCache()
+        }
+        tables = try await Self.loadSchema(queue)
+        languageService.update(tables: tables)
+        if selection == .table(table) {
+            let current = newName ?? table
+            if !tables.contains(where: { $0.name == current }) {
+                selection = nil
+            } else if current != table {
+                selection = .table(current)
+            } else {
+                selectionChanged()
+            }
+        }
+    }
+
+    /// Foreign key enforcement can only be switched outside a transaction. Off, rebuilding a table doesn't
+    /// cascade or fail on rows that reference it.
+    nonisolated private static func withForeignKeysOff(_ db: Database, _ work: () throws -> Void) throws {
+        let enabled = try Bool.fetchOne(db, sql: "PRAGMA foreign_keys") ?? false
+        try db.execute(sql: "PRAGMA foreign_keys = OFF")
+        defer { if enabled { try? db.execute(sql: "PRAGMA foreign_keys = ON") } }
+        try work()
+        if enabled, try Row.fetchOne(db, sql: "PRAGMA foreign_key_check") != nil {
+            throw SchemaError("The change broke a foreign key.")
+        }
+    }
+
+    /// SQLite can't change a column definition in place. This is its documented rebuild, run inside the
+    /// caller's transaction: create the new shape under a temporary name, copy the rows, swap it in, and
+    /// restore the table's indexes and triggers.
+    nonisolated private static func rebuild(
+        _ db: Database, table: String, edit: (inout TableDefinition) throws -> Void
+    ) throws {
+        guard let sql = try String.fetchOne(
+                  db, sql: "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", arguments: [table]),
+              var definition = TableDefinition(sql: sql)
+        else { throw SchemaError("Couldn't read the definition of “\(table)”.") }
+        try edit(&definition)
+
+        let temp = table + "__wal_ley_rebuild"
+        let dependents = try String.fetchAll(db, sql: """
+            SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL
+            """, arguments: [table])
+        try db.execute(sql: definition.createSQL(name: temp))
+
+        let old = try storedColumns(db, table)
+        let shared = try storedColumns(db, temp).filter(old.contains)
+        if !shared.isEmpty {
+            var list = shared.map(sqlQuote).joined(separator: ", ")
+            // Keep rowids stable unless the new table has an INTEGER PRIMARY KEY, which already is the rowid.
+            if try hasRowID(db, table), try hasRowID(db, temp), try !hasRowIDAlias(db, temp) {
+                list = "rowid, " + list
+            }
+            try db.execute(sql: "INSERT INTO \(sqlQuote(temp)) (\(list)) SELECT \(list) FROM \(sqlQuote(table))")
+        }
+        try db.execute(sql: "DROP TABLE \(sqlQuote(table))")
+        // Legacy rename leaves references in other tables and views pointing at the original name, which is
+        // where the rebuilt table ends up.
+        try db.execute(sql: "PRAGMA legacy_alter_table = ON")
+        defer { try? db.execute(sql: "PRAGMA legacy_alter_table = OFF") }
+        try db.execute(sql: "ALTER TABLE \(sqlQuote(temp)) RENAME TO \(sqlQuote(table))")
+        for sql in dependents { try db.execute(sql: sql) }
+    }
+
+    /// Columns that hold data; generated columns compute themselves and can't be inserted into.
+    nonisolated private static func storedColumns(_ db: Database, _ table: String) throws -> [String] {
+        try Row.fetchAll(db, sql: "PRAGMA table_xinfo(\(sqlQuote(table)))")
+            .filter { ($0["hidden"] as Int) == 0 }
+            .map { $0["name"] }
+    }
+
+    nonisolated private static func hasRowID(_ db: Database, _ table: String) throws -> Bool {
+        (try? db.makeStatement(sql: "SELECT rowid FROM \(sqlQuote(table)) LIMIT 0")) != nil
+    }
+
+    nonisolated private static func hasRowIDAlias(_ db: Database, _ table: String) throws -> Bool {
+        let keys = try Row.fetchAll(db, sql: "PRAGMA table_info(\(sqlQuote(table)))").filter { ($0["pk"] as Int) > 0 }
+        return keys.count == 1 && (keys[0]["type"] as String).uppercased() == "INTEGER"
     }
 
     // MARK: Console

@@ -115,15 +115,17 @@ private struct FilterBar: View {
             Label(manager.columnList.map { "Columns \($0.count)/\(total)" } ?? "Columns", systemImage: "checklist")
         }
         .fixedSize()
-        Button("Add Filter", systemImage: "line.3.horizontal.decrease", action: add)
+        ShortcutButton("Add Filter", systemImage: "line.3.horizontal.decrease",
+                       shortcuts: KeyboardShortcut(.return, modifiers: .command), action: add)
             .disabled(column.isEmpty || (op.needsValue && value.isEmpty))
         if !op.needsValue { Spacer() }
     }
 
     @ViewBuilder
     private var sqlButtons: some View {
-        Button("Run", systemImage: "play.fill") { manager.setRawQuery(sqlText) }
-            .keyboardShortcut(.return, modifiers: .command)
+        ShortcutButton("Run", systemImage: "play.fill", shortcuts: KeyboardShortcut(.return, modifiers: .command)) {
+            manager.setRawQuery(sqlText)
+        }
         Button("Reset") { manager.setRawQuery(nil); sqlText = manager.generatedQuery }
         Text("Read-only · paging and header sorting apply on top")
             .font(.caption).foregroundStyle(.secondary)
@@ -144,9 +146,14 @@ private struct FooterBar: View {
 
     var body: some View {
         HStack {
-            Button("Previous", systemImage: "chevron.left") { manager.goToPage(manager.page - 1) }
+            // ⌘[ and ⌘] are the standard Back and Forward.
+            ShortcutButton("Previous", systemImage: "chevron.left", shortcuts: KeyboardShortcut("[")) {
+                manager.goToPage(manager.page - 1)
+            }
                 .disabled(manager.page == 0)
-            Button("Next", systemImage: "chevron.right") { manager.goToPage(manager.page + 1) }
+            ShortcutButton("Next", systemImage: "chevron.right", shortcuts: KeyboardShortcut("]")) {
+                manager.goToPage(manager.page + 1)
+            }
                 .disabled(manager.page >= manager.pageCount - 1)
             Text(rangeText).foregroundStyle(.secondary)
             if manager.isLoading { ProgressView().controlSize(.small) }
@@ -160,7 +167,7 @@ private struct FooterBar: View {
             if manager.pendingCount > 0 {
                 Text("\(manager.pendingCount) unsaved").foregroundStyle(.orange)
                 Button("Discard") { manager.discardChanges() }
-                Button("Save") { Task { await manager.saveChanges() } }
+                ShortcutButton("Save", shortcuts: KeyboardShortcut("s")) { Task { await manager.saveChanges() } }
                     .buttonStyle(.borderedProminent)
             }
         }

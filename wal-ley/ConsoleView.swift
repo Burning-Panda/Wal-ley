@@ -20,8 +20,9 @@ struct ConsoleView: View {
                 Divider()
                 HStack {
                     Spacer()
-                    Button("Run", systemImage: "play.fill") { Task { await manager.runConsole(textToRun) } }
-                        .keyboardShortcut(.return, modifiers: .command)
+                    ShortcutButton("Run", systemImage: "play.fill", shortcuts: KeyboardShortcut(.return, modifiers: .command)) {
+                        Task { await manager.runConsole(textToRun) }
+                    }
                         .disabled(manager.consoleRunning)
                 }
                 .padding(8)
