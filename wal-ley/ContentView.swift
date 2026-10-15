@@ -80,9 +80,24 @@ struct ContentView: View {
                     Text(manager.errorMessage ?? "Open or drop a .sqlite, .sqlite3 or .db file.")
                 } actions: {
                     HStack {
-                        Button("Create New Database…") { Task { await manager.requestNewDatabase() } }
-                        Button("Open…") { manager.showOpenPanel = true }
+                        Button(action: {
+                            Task { await manager.requestNewDatabase() }
+                        }) {
+                            Text("Create New Database…")
+                                .frame(width: 180)
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button(action: {
+                            manager.showOpenPanel = true
+                        }) {
+                            Text("Open…")
+                                .frame(width: 100)
+
+                        }
+                        .buttonStyle(.bordered)
                     }
+
                 }
                 if !manager.recents.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {

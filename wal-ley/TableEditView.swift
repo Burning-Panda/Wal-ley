@@ -30,7 +30,8 @@ struct TableEditView: View {
                     // Empty rows below the columns: click the first or double-click any to add a column.
                     // The first also takes double-clicks, so one double-click doesn't add two.
                     ForEach(0..<max(3, 12 - draft.columns.count), id: \.self) { i in
-                        FillerRow(striped: (draft.columns.count + i).isMultiple(of: 2) == false, showsHint: i == 0)
+                        FillerRow(striped: (draft.columns.count + i).isMultiple(of: 2) == false, showsHint: i == 0,
+                                  onAdd: addColumn)
                             .onTapGesture(count: 2, perform: addColumn)
                             .onTapGesture(count: 1) { if i == 0 { addColumn() } }
                     }
@@ -162,6 +163,7 @@ private struct ColumnHeader: View {
             Text("Default").frame(width: Layout.defaultValue, alignment: .leading)
             ShortcutButton("Add Column", systemImage: "plus", shortcuts: KeyboardShortcut("n"), action: onAdd)
                 .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .focusable()
                 .frame(width: Layout.action)
         }
         .font(.callout.weight(.medium))
@@ -185,6 +187,7 @@ private struct ColumnRow: View {
                     .frame(maxWidth: .infinity)
                 ColumnTypePicker(selection: $column.spec.type, custom: column.original?.type)
                     .labelsHidden()
+                    .focusable()
                     .frame(width: Layout.type)
                 flag($column.spec.primaryKey)
                 flag($column.spec.notNull)
@@ -197,6 +200,7 @@ private struct ColumnRow: View {
             Button(column.deleted ? "Restore Column" : "Delete Column",
                    systemImage: column.deleted ? "arrow.uturn.backward" : "minus.circle", action: onRemove)
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+                .focusable()
                 .help(column.deleted ? "Restore Column" : "Delete Column")
                 .frame(width: Layout.action)
         }
@@ -209,7 +213,7 @@ private struct ColumnRow: View {
     }
 
     private func flag(_ value: Binding<Bool>) -> some View {
-        Toggle("", isOn: value).labelsHidden().toggleStyle(.checkbox).frame(width: Layout.flag)
+        Toggle("", isOn: value).labelsHidden().toggleStyle(.checkbox).focusable().frame(width: Layout.flag)
     }
 
     private var tint: Color {
@@ -223,6 +227,7 @@ private struct ColumnRow: View {
 private struct FillerRow: View {
     let striped: Bool
     let showsHint: Bool
+    let onAdd: () -> Void
 
     var body: some View {
         HStack {
@@ -233,6 +238,9 @@ private struct FillerRow: View {
         .frame(height: Layout.rowHeight)
         .background(striped ? Color.primary.opacity(0.04) : .clear)
         .contentShape(Rectangle())
+        .focusable(showsHint)
+        .onKeyPress(.space) { onAdd(); return .handled }
+        .onKeyPress(.return) { onAdd(); return .handled }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(showsHint ? "addColumnRow" : "fillerRow")
     }
