@@ -42,7 +42,7 @@ final class ShortcutHints {
 }
 
 extension KeyboardShortcut {
-    /// As menus show it, e.g. ⇧⌘W or ⌘↩.
+    /// As menus show it, e.g. ⇧⌘N or ⌘↩.
     var symbols: String {
         var text = ""
         if modifiers.contains(.control) { text += "⌃" }
@@ -70,16 +70,19 @@ struct ShortcutButton: View {
     var role: ButtonRole?
     /// Tooltip text; the shortcut is appended. Defaults to the title.
     var help: String?
+    /// Where the badge sits: centered under the button, or beside it for buttons with content below.
+    var hintBeside = false
     let shortcuts: [KeyboardShortcut]
     let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
 
     init(_ title: String, systemImage: String? = nil, role: ButtonRole? = nil, help: String? = nil,
-         shortcuts: KeyboardShortcut..., action: @escaping () -> Void) {
+         hintBeside: Bool = false, shortcuts: KeyboardShortcut..., action: @escaping () -> Void) {
         self.title = title
         self.systemImage = systemImage
         self.role = role
         self.help = help
+        self.hintBeside = hintBeside
         self.shortcuts = shortcuts
         self.action = action
     }
@@ -97,7 +100,7 @@ struct ShortcutButton: View {
         .keyboardShortcut(shortcuts[0])
         .help(Self.tooltip(help ?? title, shortcuts[0]))
         .modifier(ExtraShortcuts(title: title, shortcuts: Array(shortcuts.dropFirst()), action: action))
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: hintBeside ? .leading : .bottom) {
             if hinting {
                 Text(shortcuts[0].symbols)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -107,7 +110,8 @@ struct ShortcutButton: View {
                     .foregroundStyle(.primary)
                     .opacity(isEnabled ? 1 : 0.4)
                     .fixedSize()
-                    .offset(x: 8, y: -9)
+                    .alignmentGuide(.leading) { hintBeside ? $0[.trailing] + 6 : $0[.leading] }
+                    .offset(y: hintBeside ? 0 : 7)
                     .allowsHitTesting(false)
                     .transition(.opacity)
                     .accessibilityIdentifier("shortcutHint")

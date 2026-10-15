@@ -35,7 +35,7 @@ struct wal_leyApp: App {
                         .disabled(manager.recents.isEmpty)
                 }
                 Button("Close Database") { Task { await manager.requestClose() } }
-                    .keyboardShortcut("w", modifiers: [.command, .shift])
+                    .keyboardShortcut("w")
                     .disabled(!manager.isOpen)
             }
             CommandGroup(replacing: .saveItem) {

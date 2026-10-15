@@ -22,7 +22,7 @@ struct ContentView: View {
             ShortcutButton("Open…", systemImage: "folder",
                            help: "Open a database file", shortcuts: KeyboardShortcut("o")) { manager.showOpenPanel = true }
             ShortcutButton("Close Database", systemImage: "eject", help: "Close the open database",
-                           shortcuts: KeyboardShortcut("w", modifiers: [.command, .shift])) {
+                           shortcuts: KeyboardShortcut("w")) {
                 Task { await manager.requestClose() }
             }
                 .disabled(!manager.isOpen)
