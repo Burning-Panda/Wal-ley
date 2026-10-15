@@ -32,6 +32,8 @@ struct DataGridView: NSViewRepresentable {
         table.doubleAction = #selector(Coordinator.doubleClicked(_:))
         table.onDeleteKey = { [weak coordinator = context.coordinator] in coordinator?.deleteSelection() }
         table.onReturnKey = { [weak coordinator = context.coordinator] in coordinator?.editFocusedCell() }
+        table.onCopy = { [weak coordinator = context.coordinator] in coordinator?.activeCellValue() }
+        table.onPaste = { [weak coordinator = context.coordinator] in coordinator?.paste($0) }
         let menu = NSMenu()
         menu.delegate = context.coordinator
         table.menu = menu
@@ -89,6 +91,8 @@ struct DataGridView: NSViewRepresentable {
     final class GridTableView: NSTableView {
         var onDeleteKey: () -> Void = {}
         var onReturnKey: () -> Void = {}
+        var onCopy: () -> String? = { nil }
+        var onPaste: (String) -> Void = { _ in }
         /// The cell the keyboard is on, within the selected row; outlined while the grid has focus.
         var activeColumn = -1 { didSet { redrawRows() } }
 
@@ -106,6 +110,17 @@ struct DataGridView: NSViewRepresentable {
             case 124 where plain: moveFocus(by: 1)
             default: super.keyDown(with: event)
             }
+        }
+
+        @objc func copy(_ sender: Any?) {
+            guard let text = onCopy() else { return NSSound.beep() }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        }
+
+        @objc func paste(_ sender: Any?) {
+            guard let text = NSPasteboard.general.string(forType: .string) else { return NSSound.beep() }
+            onPaste(text)
         }
 
         override func mouseDown(with event: NSEvent) {
@@ -293,20 +308,67 @@ struct DataGridView: NSViewRepresentable {
             field.isSelectable = false
             let row = table.row(for: field), column = table.column(for: field)
             guard row >= 0, column >= 0 else { return }
-            parent.onEdit(row, table.tableColumns[column].identifier.rawValue, field.stringValue)
+            // The field editor's own undo steps point at views this reload replaces; ours replace them. Only those
+            // go: earlier cell edits and deletes stay undoable.
+            let manager = table.undoManager
+            if let editor = notification.userInfo?["NSFieldEditor"] { manager?.removeAllActions(withTarget: editor) }
+            manager?.removeAllActions(withTarget: field)
+            manager?.removeAllActions(withTarget: field.cell as Any)
+            setValue(field.stringValue, row: row, column: column, in: table)
+        }
+
+        /// Applies an edit and registers its undo (which in turn registers the redo).
+        private func setValue(_ new: String, row: Int, column: Int, in table: NSTableView) {
+            guard row < parent.grid.rows.count, column < parent.grid.columns.count else { return }
+            let name = parent.grid.columns[column]
+            let old = value(row: row, column: column).0
+            if new != old {
+                table.undoManager?.registerUndo(withTarget: self) { [weak table] target in
+                    guard let table else { return }
+                    target.setValue(old, row: row, column: column, in: table)
+                }
+                table.undoManager?.setActionName("Edit Cell")
+            }
+            parent.onEdit(row, name, new)
             // Re-render this row from state, which also reverts rejected edits.
             table.reloadData(forRowIndexes: [row], columnIndexes: IndexSet(integersIn: 0..<table.numberOfColumns))
+        }
+
+        // MARK: Copy / paste
+
+        /// The value of the active cell in the selected row, as shown.
+        func activeCellValue() -> String? {
+            guard let table = tableView, table.selectedRow >= 0, table.selectedRow < parent.grid.rows.count,
+                  table.activeColumn >= 0, table.activeColumn < parent.grid.columns.count else { return nil }
+            return value(row: table.selectedRow, column: table.activeColumn).0
+        }
+
+        func paste(_ text: String) {
+            guard let table = tableView, parent.editable, table.selectedRowIndexes.count == 1,
+                  table.activeColumn >= 0, !isDeleted(row: table.selectedRow),
+                  activeCellValue()?.hasPrefix("<blob ") == false else { return NSSound.beep() }
+            setValue(text, row: table.selectedRow, column: table.activeColumn, in: table)
         }
 
         // MARK: Deleting / context menu
 
         func deleteSelection() {
             guard let table = tableView, parent.editable, !table.selectedRowIndexes.isEmpty else { return }
-            parent.onDelete(table.selectedRowIndexes)
+            markDeleted(table.selectedRowIndexes, deleted: true, in: table)
         }
 
         @objc private func restoreSelection() {
-            if let table = tableView { parent.onRestore(table.selectedRowIndexes) }
+            if let table = tableView { markDeleted(table.selectedRowIndexes, deleted: false, in: table) }
+        }
+
+        /// Marks rows deleted or restores them, registering the opposite as the undo.
+        private func markDeleted(_ rows: IndexSet, deleted: Bool, in table: NSTableView) {
+            if deleted { parent.onDelete(rows) } else { parent.onRestore(rows) }
+            table.undoManager?.registerUndo(withTarget: self) { [weak table] target in
+                guard let table else { return }
+                target.markDeleted(rows, deleted: !deleted, in: table)
+            }
+            table.undoManager?.setActionName(deleted ? "Delete Rows" : "Restore Rows")
         }
 
         func menuNeedsUpdate(_ menu: NSMenu) {
