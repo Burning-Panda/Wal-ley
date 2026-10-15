@@ -136,6 +136,7 @@ private struct FilterBar: View {
 
 private struct FooterBar: View {
     @Bindable var manager: DatabaseManager
+    @State private var showingSQL = false
 
     var body: some View {
         HStack {
@@ -159,8 +160,10 @@ private struct FooterBar: View {
             Spacer()
             if manager.pendingCount > 0 {
                 Text("\(manager.pendingCount) unsaved").foregroundStyle(.orange)
-                Button("Discard") { manager.discardChanges() }
-                    .keyActivated { manager.discardChanges() }
+                ShortcutButton("View SQL", systemImage: "text.alignleft", help: "Show the SQL that Save will run",
+                               shortcuts: KeyboardShortcut("l")) { showingSQL = true }
+                    .labelStyle(.titleAndIcon)
+                ShortcutButton("Discard", shortcuts: KeyboardShortcut("d")) { manager.discardChanges() }
                 ShortcutButton("Save", shortcuts: KeyboardShortcut("s")) { Task { await manager.saveChanges() } }
                     .buttonStyle(.borderedProminent)
             }
@@ -168,6 +171,7 @@ private struct FooterBar: View {
         .labelStyle(.iconOnly)
         .font(.caption)
         .padding(8)
+        .sheet(isPresented: $showingSQL) { PendingSQLSheet(sql: manager.pendingSQL) }
     }
 
     private var rangeText: String {
@@ -175,5 +179,36 @@ private struct FooterBar: View {
         let start = manager.totalRows == 0 ? 0 : manager.page * size + 1
         let end = min(manager.totalRows, (manager.page + 1) * size)
         return "\(start)–\(end) of \(manager.totalRows)"
+    }
+}
+
+/// The pending changes as the SQL Save will run, for review before committing.
+private struct PendingSQLSheet: View {
+    let sql: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("SQL to run on Save").font(.headline)
+            ScrollView([.vertical, .horizontal]) {
+                Text(sql)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+            }
+            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+            HStack {
+                Button("Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(sql, forType: .string)
+                }
+                Spacer()
+                ShortcutButton("Done", shortcuts: .cancelAction, .defaultAction) { dismiss() }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 520, minHeight: 280)
     }
 }

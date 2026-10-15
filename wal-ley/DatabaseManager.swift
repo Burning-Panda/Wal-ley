@@ -465,6 +465,19 @@ final class DatabaseManager {
         }
     }
 
+    /// The statements Save will run, in order, as text for review (values inlined; saving binds them instead).
+    var pendingSQL: String {
+        var lines: [String] = []
+        for key in pendingDeletes.sorted(by: { ($0.table, $0.rowID) < ($1.table, $1.rowID) }) {
+            lines.append("DELETE FROM \(sqlQuote(key.table)) WHERE rowid = \(key.rowID);")
+        }
+        for (key, value) in pendingChanges.sorted(by: { ($0.key.table, $0.key.rowID, $0.key.column) < ($1.key.table, $1.key.rowID, $1.key.column) }) {
+            let literal = value == "NULL" ? "NULL" : sqlLiteral(value)
+            lines.append("UPDATE \(sqlQuote(key.table)) SET \(sqlQuote(key.column)) = \(literal) WHERE rowid = \(key.rowID);")
+        }
+        return (["BEGIN;"] + lines + ["COMMIT;"]).joined(separator: "\n")
+    }
+
     func discardChanges() {
         pendingChanges = [:]
         pendingDeletes = []

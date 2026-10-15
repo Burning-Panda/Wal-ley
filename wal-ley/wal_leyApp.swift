@@ -43,6 +43,7 @@ struct wal_leyApp: App {
                     .keyboardShortcut("s")
                     .disabled(manager.pendingCount == 0)
                 Button("Discard Changes") { manager.discardChanges() }
+                    .keyboardShortcut("d")
                     .disabled(manager.pendingCount == 0)
             }
             CommandMenu("Query") {

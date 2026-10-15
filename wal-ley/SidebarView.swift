@@ -11,13 +11,10 @@ struct SidebarView: View {
     private var canEditSchema: Bool { manager.isOpen && !manager.isReadOnly }
 
     var body: some View {
-        List(selection: $manager.selection) {
-            Label("SQL Console", systemImage: "terminal")
-                .tag(SidebarItem.console)
-            section("Tables", visible.filter { !$0.isView }, canAdd: canEditSchema)
-            section("Views", visible.filter { $0.isView })
+        VStack(spacing: 0) {
+            consoleRow
+            tableList
         }
-        .contextMenu(forSelectionType: SidebarItem.self) { items in menu(for: items) }
         .searchable(text: $search, placement: .sidebar, prompt: "Filter tables")
         .background(FocusSearchField())
         .safeAreaInset(edge: .bottom) {
@@ -41,6 +38,31 @@ struct SidebarView: View {
         } message: {
             Text(schemaError ?? "")
         }
+    }
+
+    /// Its own Tab stop, apart from the table list: the console is a separate context from the tables.
+    private var consoleRow: some View {
+        let selected = manager.selection == .console
+        return Button { manager.selection = .console } label: {
+            Label("SQL Console", systemImage: "terminal")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .background(selected ? Color.accentColor : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .keyActivated { manager.selection = .console }
+        .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 2)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var tableList: some View {
+        List(selection: $manager.selection) {
+            section("Tables", visible.filter { !$0.isView }, canAdd: canEditSchema)
+            section("Views", visible.filter { $0.isView })
+        }
+        .contextMenu(forSelectionType: SidebarItem.self) { items in menu(for: items) }
     }
 
     @ViewBuilder
