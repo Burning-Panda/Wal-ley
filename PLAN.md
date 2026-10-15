@@ -12,7 +12,7 @@
 - Schema editing: `TableEditView` is a staged structure editor (sidebar `+`, or right-click a table). Edits live in a `TableDraft` until Save, which applies them in one transaction: drops/renames/plain adds via `ALTER TABLE`, everything else via one table rebuild. `TableDefinition`/`ColumnClauses` rewrite the stored CREATE TABLE so CHECKs, collations and FKs survive.
 
 ## Rules
-- Shortcuts follow the macOS standard: ⌘S save, ⌘N new database (new column inside the structure editor), ⇧⌘N new table, ⌘O open, ⌘[ / ⌘] back/forward (pages), esc cancel; ⌘↩ is each view's main action. Buttons with shortcuts use `ShortcutButton`, which shows the keys and underlines the letter while ⌘ is held. A view's own shortcut wins over a menu item with the same keys, so menus hold the app-wide fallback.
+- Shortcuts follow the macOS standard: ⌘S save, ⌘N new database (new column inside the structure editor), ⌘T new table, ⌘O open, ⌘[ / ⌘] back/forward (pages), esc cancel; ⌘↩ is each view's main action. Buttons with shortcuts use `ShortcutButton`, which shows the keys and underlines the letter while ⌘ is held. A view's own shortcut wins over a menu item with the same keys, so menus hold the app-wide fallback.
 - Sorting, filtering and paging are SQL (`ORDER BY`, parameterised `WHERE`, `LIMIT/OFFSET`); never in the view layer.
 - Edits are tracked in `pendingChanges` and written in one transaction on Save.
 - Console is its own mode: selecting it clears table data and table selection.

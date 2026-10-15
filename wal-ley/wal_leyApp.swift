@@ -22,7 +22,7 @@ struct wal_leyApp: App {
                 Button("New Database…") { Task { await manager.requestNewDatabase() } }
                     .keyboardShortcut("n")
                 Button("New Table…") { manager.showNewTable = true }
-                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                    .keyboardShortcut("t")
                     .disabled(!manager.isOpen || manager.isReadOnly)
                 Button("Open…") { manager.showOpenPanel = true }
                     .keyboardShortcut("o")

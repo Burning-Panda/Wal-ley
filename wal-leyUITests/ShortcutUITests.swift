@@ -46,10 +46,10 @@ final class ShortcutUITests: XCTestCase {
     }
 
     @MainActor
-    func testShiftCommandNOpensNewTableEditor() throws {
+    func testCommandTOpensNewTableEditor() throws {
         let (app, _) = try XCUIApplication.launched(withDatabase: "CREATE TABLE t (id INTEGER PRIMARY KEY);")
-        app.typeKey("n", modifierFlags: [.command, .shift])
-        XCTAssertTrue(app.tableNameField.waitForExistence(timeout: 5), "⇧⌘N didn't open the structure editor")
+        app.typeKey("t", modifierFlags: .command)
+        XCTAssertTrue(app.tableNameField.waitForExistence(timeout: 5), "⌘T didn't open the structure editor")
         XCTAssertTrue(app.buttons["Create Table"].exists)
         XCTAssertEqual(app.columnNameFields.count, 1, "a new table starts with its id column")
     }

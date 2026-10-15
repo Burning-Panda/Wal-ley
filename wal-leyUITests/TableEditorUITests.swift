@@ -10,7 +10,7 @@ final class TableEditorUITests: XCTestCase {
     @MainActor
     func testCreateTableWithColumns() throws {
         let (app, path) = try XCUIApplication.launched(withDatabase: Self.schema)
-        app.typeKey("n", modifierFlags: [.command, .shift])
+        app.typeKey("t", modifierFlags: .command)
         XCTAssertTrue(app.tableNameField.waitForExistence(timeout: 5))
         app.tableNameField.click()
         app.typeText("people")

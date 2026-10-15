@@ -121,7 +121,7 @@ struct SidebarView: View {
                     Text(title)
                     Spacer()
                     if canAdd {
-                        ShortcutButton("New Table", systemImage: "plus", shortcuts: KeyboardShortcut("n", modifiers: [.command, .shift])) {
+                        ShortcutButton("New Table", systemImage: "plus", shortcuts: KeyboardShortcut("t")) {
                             manager.showNewTable = true
                         }
                             .labelStyle(.iconOnly).buttonStyle(.borderless)

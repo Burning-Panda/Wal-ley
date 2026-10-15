@@ -36,7 +36,7 @@ final class WindowUITests: XCTestCase {
     @MainActor
     func testNewTableSheetAppearsOnce() throws {
         let (app, _) = try XCUIApplication.launched(withDatabase: "CREATE TABLE t (id INTEGER PRIMARY KEY);")
-        app.typeKey("n", modifierFlags: [.command, .shift])
+        app.typeKey("t", modifierFlags: .command)
         XCTAssertTrue(app.tableNameField.waitForExistence(timeout: 5))
         XCTAssertEqual(app.sheets.count, 1)
     }
