@@ -140,7 +140,19 @@ extension CodeView {
   override public func keyDown(with event: NSEvent) {
 
     let noModifiers = event.modifierFlags.intersection([.shift, .control, .option, .command]) == []
-    if event.keyCode == keyCodeTab && noModifiers {
+    let shifted = event.modifierFlags.intersection([.shift, .control, .option, .command]) == .shift
+    if !isEditing {
+      // Focused but not editing: tab passes through, return starts editing, shortcuts still work.
+      if event.keyCode == keyCodeTab && (noModifiers || shifted) {
+        if shifted { window?.selectPreviousKeyView(self) } else { window?.selectNextKeyView(self) }
+      } else if event.keyCode == keyCodeReturn && noModifiers {
+        isEditing = true
+      } else if event.modifierFlags.contains(.command) {
+        super.keyDown(with: event)
+      }
+    } else if event.keyCode == keyCodeEscape && noModifiers {
+      isEditing = false
+    } else if event.keyCode == keyCodeTab && noModifiers {
       insertTab()
     } else if event.keyCode == keyCodeReturn && noModifiers {
       insertReturn()

@@ -11,6 +11,7 @@
 
 let keyCodeReturn: UInt16    = 0x24
 let keyCodeTab: UInt16       = 0x30
+let keyCodeEscape: UInt16    = 0x35
 let keyCodeESC: UInt16       = 0x35
 let keyCodeDownArrow: UInt16 = 0x7D
 let keyCodeUpArrow: UInt16   = 0x7E

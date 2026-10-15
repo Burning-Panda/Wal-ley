@@ -384,6 +384,79 @@ final class CodeBackgroundHighlightView: UIView {
 ///  
 final class CodeView: NSTextView {
 
+  /// Tab moves focus on to the next control while this is off; return (or a click) turns it on to edit, and
+  /// escape (or leaving the view) turns it off again. Keeps Tab from being swallowed as an indent.
+  private var caretColor: NSColor?
+  var isEditing = false {
+    didSet {
+      updateEditingIndicator()
+      updateCaret()
+      updateInsertionPointStateAndRestartTimer(true)
+      needsDisplay = true
+    }
+  }
+
+  override var shouldDrawInsertionPoint: Bool { isEditing && super.shouldDrawInsertionPoint }
+
+  override func mouseDown(with event: NSEvent) {
+    isEditing = true
+    super.mouseDown(with: event)
+  }
+
+  override func becomeFirstResponder() -> Bool {
+    let became = super.becomeFirstResponder()
+    if became {
+      updateEditingIndicator()
+      updateCaret()
+      // The indicator view can appear a moment after focus.
+      DispatchQueue.main.async { [weak self] in self?.updateCaret() }
+    }
+    return became
+  }
+
+  override func resignFirstResponder() -> Bool {
+    isEditing = false
+    let resigned = super.resignFirstResponder()
+    updateEditingIndicator()
+    updateCaret()
+    return resigned
+  }
+
+  private static let hintTag = 0x7761_6c65
+
+  /// While focused but not editing: an accent outline and a "Press ↩ to edit" label, since the caret is hidden.
+  private func updateEditingIndicator() {
+    guard let scrollView = enclosingScrollView else { return }
+    let waiting = window?.firstResponder === self && !isEditing
+    scrollView.wantsLayer = true
+    scrollView.layer?.borderColor = NSColor.controlAccentColor.cgColor
+    scrollView.layer?.borderWidth = waiting ? 1.5 : 0
+    let existing = scrollView.viewWithTag(Self.hintTag)
+    if !waiting { existing?.removeFromSuperview(); return }
+    guard existing == nil else { return }
+    let label = NSTextField(labelWithString: "Press ↩ to edit")
+    label.tag = Self.hintTag
+    label.font = .systemFont(ofSize: 11, weight: .medium)
+    label.textColor = .secondaryLabelColor
+    label.sizeToFit()
+    // Frame-based, pinned to the top right whichever way the scroll view is flipped.
+    label.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
+    let y = scrollView.isFlipped ? 6 : scrollView.bounds.height - label.frame.height - 6
+    label.frame.origin = CGPoint(x: scrollView.bounds.width - label.frame.width - 10, y: y)
+    scrollView.addSubview(label)
+  }
+
+  /// The caret is a separate indicator view with TextKit 2; hide both it and the classic insertion point.
+  private func updateCaret() {
+    if insertionPointColor != .clear { caretColor = insertionPointColor }
+    insertionPointColor = isEditing ? (caretColor ?? .textColor) : .clear
+    func visit(_ view: NSView) {
+      if let indicator = view as? NSTextInsertionIndicator { indicator.displayMode = isEditing ? .automatic : .hidden }
+      view.subviews.forEach(visit)
+    }
+    visit(self)
+  }
+
   // Delegates
   fileprivate let codeViewDelegate =                 CodeViewDelegate()
   fileprivate var codeStorageDelegate:               CodeStorageDelegate
