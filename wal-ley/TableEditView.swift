@@ -186,7 +186,6 @@ private struct ColumnRow: View {
                     .frame(maxWidth: .infinity)
                 ColumnTypePicker(selection: $column.spec.type, custom: column.original?.type)
                     .labelsHidden()
-                    .focusable()
                     .frame(width: Layout.type)
                 flag($column.spec.primaryKey)
                 flag($column.spec.notNull)
@@ -199,7 +198,7 @@ private struct ColumnRow: View {
             Button(column.deleted ? "Restore Column" : "Delete Column",
                    systemImage: column.deleted ? "arrow.uturn.backward" : "minus.circle", action: onRemove)
                 .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
-                .focusable()
+                .keyActivated(onRemove)
                 .help(column.deleted ? "Restore Column" : "Delete Column")
                 .frame(width: Layout.action)
         }
@@ -212,7 +211,9 @@ private struct ColumnRow: View {
     }
 
     private func flag(_ value: Binding<Bool>) -> some View {
-        Toggle("", isOn: value).labelsHidden().toggleStyle(.checkbox).focusable().frame(width: Layout.flag)
+        Toggle("", isOn: value).labelsHidden().toggleStyle(.checkbox)
+            .keyActivated { value.wrappedValue.toggle() }
+            .frame(width: Layout.flag)
     }
 
     private var tint: Color {
@@ -251,8 +252,8 @@ struct ColumnTypePicker: View {
     var custom: String?
 
     var body: some View {
-        Picker("Type", selection: $selection) {
-            ForEach(options, id: \.self) { Text($0).tag($0) }
+        KeyPopUp(items: options.map { .init(title: $0) }, selected: options.firstIndex(of: selection) ?? 0) {
+            selection = options[$0]
         }
     }
 

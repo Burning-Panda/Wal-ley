@@ -41,11 +41,8 @@ private struct FilterBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Picker("Mode", selection: $sqlMode) {
-                    Text("Builder").tag(false)
-                    Text("SQL").tag(true)
-                }
-                .pickerStyle(.segmented).labelsHidden().focusable().frame(width: 140)
+                KeySegmented(titles: ["Builder", "SQL"], selected: Binding(get: { sqlMode ? 1 : 0 }, set: { sqlMode = $0 == 1 }))
+                    .frame(width: 140)
                 if sqlMode { sqlButtons } else { builder }
             }
             if sqlMode {
@@ -91,31 +88,25 @@ private struct FilterBar: View {
 
     @ViewBuilder
     private var builder: some View {
-        Picker("Column", selection: $column) {
-            ForEach(manager.selectedTable?.columns ?? []) { Text($0.name).tag($0.name) }
-        }
-        .labelsHidden().focusable().frame(width: 160)
-        Picker("Operator", selection: $op) {
-            ForEach(FilterOperator.allCases) { Text($0.rawValue).tag($0) }
-        }
-        .labelsHidden().focusable().frame(width: 150)
+        let names = (manager.selectedTable?.columns ?? []).map(\.name)
+        KeyPopUp(items: names.map { .init(title: $0) }, selected: names.firstIndex(of: column) ?? 0) { column = names[$0] }
+            .frame(width: 160)
+        KeyPopUp(items: FilterOperator.allCases.map { .init(title: $0.rawValue) },
+                 selected: FilterOperator.allCases.firstIndex(of: op) ?? 0) { op = FilterOperator.allCases[$0] }
+            .frame(width: 150)
         if op.needsValue {
             PlainTextField(text: $value, placeholder: "Value", onSubmit: add)
         }
-        Menu {
-            ForEach(manager.selectedTable?.columns ?? []) { col in
-                Toggle(col.name, isOn: Binding(
-                    get: { manager.isColumnSelected(col.name) },
-                    set: { manager.setColumn(col.name, selected: $0) }))
+        let all = manager.selectedTable?.columns ?? []
+        KeyPopUp(items: all.map { .init(title: $0.name, checked: manager.isColumnSelected($0.name)) } + [.init(title: "Show All")],
+                 title: manager.columnList.map { "Columns \($0.count)/\(all.count)" } ?? "Columns", symbol: "checklist") { index in
+            if index < all.count {
+                manager.setColumn(all[index].name, selected: !manager.isColumnSelected(all[index].name))
+            } else {
+                manager.showAllColumns()
             }
-            Divider()
-            Button("Show All") { manager.showAllColumns() }
-        } label: {
-            let total = manager.selectedTable?.columns.count ?? 0
-            Label(manager.columnList.map { "Columns \($0.count)/\(total)" } ?? "Columns", systemImage: "checklist")
         }
         .fixedSize()
-        .focusable()
         ShortcutButton("Add Filter", systemImage: "line.3.horizontal.decrease",
                        shortcuts: KeyboardShortcut(.return, modifiers: .command), action: add)
             .disabled(column.isEmpty || (op.needsValue && value.isEmpty))
@@ -128,7 +119,7 @@ private struct FilterBar: View {
             manager.setRawQuery(sqlText)
         }
         Button("Reset") { manager.setRawQuery(nil); sqlText = manager.generatedQuery }
-            .focusable()
+            .keyActivated { manager.setRawQuery(nil); sqlText = manager.generatedQuery }
         Text("Read-only · paging and header sorting apply on top")
             .font(.caption).foregroundStyle(.secondary)
         Spacer()
@@ -169,7 +160,7 @@ private struct FooterBar: View {
             if manager.pendingCount > 0 {
                 Text("\(manager.pendingCount) unsaved").foregroundStyle(.orange)
                 Button("Discard") { manager.discardChanges() }
-                    .focusable()
+                    .keyActivated { manager.discardChanges() }
                 ShortcutButton("Save", shortcuts: KeyboardShortcut("s")) { Task { await manager.saveChanges() } }
                     .buttonStyle(.borderedProminent)
             }
