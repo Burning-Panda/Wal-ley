@@ -340,6 +340,25 @@ final class CompletionPanel: NSPanel {
 
   override var canBecomeKey: Bool { true }
 
+  /// The panel takes key status as it opens, a moment before a view inside it is first responder, and its SwiftUI
+  /// list can consume plain typing. Either way a letter typed meanwhile was lost ("fr" became "f"), so ordinary
+  /// text keys always go straight to the editor; arrows, return and escape stay with the panel.
+  override func sendEvent(_ event: NSEvent) {
+    if event.type == .keyDown, progressHandler != nil, Self.isTextInput(event) {
+      progressHandler?(.input(event))
+      return
+    }
+    super.sendEvent(event)
+  }
+
+  private static func isTextInput(_ event: NSEvent) -> Bool {
+    guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+          ![keyCodeReturn, 76, keyCodeESC, keyCodeUpArrow, keyCodeDownArrow].contains(event.keyCode),
+          let scalar = event.characters?.unicodeScalars.first else { return false }
+    // Function and arrow keys report private-use characters.
+    return !(0xF700...0xF8FF).contains(scalar.value)
+  }
+
   override func close() {
     // We cancel the completion process if the window gets closed (and the `progressHandler` is still active (i.e., it
     // is non-`nil`).

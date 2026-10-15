@@ -150,7 +150,7 @@ extension CodeView {
       } else if event.modifierFlags.contains(.command) {
         super.keyDown(with: event)
       }
-    } else if event.keyCode == keyCodeEscape && noModifiers {
+    } else if event.keyCode == keyCodeESC && noModifiers {
       isEditing = false
     } else if event.keyCode == keyCodeTab && noModifiers {
       insertTab()
