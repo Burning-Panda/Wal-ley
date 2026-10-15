@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct SidebarView: View {
     @Bindable var manager: DatabaseManager
@@ -18,6 +19,7 @@ struct SidebarView: View {
         }
         .contextMenu(forSelectionType: SidebarItem.self) { items in menu(for: items) }
         .searchable(text: $search, placement: .sidebar, prompt: "Filter tables")
+        .background(FocusSearchField())
         .safeAreaInset(edge: .bottom) {
             if let metadata = manager.metadata { MetadataView(metadata: metadata, readOnly: manager.isReadOnly) }
         }
@@ -162,4 +164,23 @@ private struct MetadataView: View {
         .padding(10)
         .background(.bar)
     }
+}
+
+/// Focuses the window's search field once, when the window first appears. Done through AppKit rather than
+/// `searchFocused`: that moves Tab into SwiftUI's own focus order, which skips the table list.
+private struct FocusSearchField: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { [weak view] in
+            guard let window = view?.window, let content = window.contentView?.superview else { return }
+            func find(_ view: NSView) -> NSSearchField? {
+                if let field = view as? NSSearchField { return field }
+                return view.subviews.lazy.compactMap(find).first
+            }
+            if let field = find(content) { window.makeFirstResponder(field) }
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
 }

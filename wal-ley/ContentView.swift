@@ -16,13 +16,13 @@ struct ContentView: View {
         .navigationTitle(manager.metadata?.name ?? "wal-ley")
         .toolbar {
             ShortcutButton("New Database…", systemImage: "doc.badge.plus",
-                           help: "Create a new, empty database file", shortcuts: KeyboardShortcut("n")) {
+                           help: "Create a new, empty database file", tabStop: false, shortcuts: KeyboardShortcut("n")) {
                 Task { await manager.requestNewDatabase() }
             }
             ShortcutButton("Open…", systemImage: "folder",
-                           help: "Open a database file", shortcuts: KeyboardShortcut("o")) { manager.showOpenPanel = true }
+                           help: "Open a database file", tabStop: false, shortcuts: KeyboardShortcut("o")) { manager.showOpenPanel = true }
             ShortcutButton("Close Database", systemImage: "eject", help: "Close the open database",
-                           shortcuts: KeyboardShortcut("w")) {
+                           tabStop: false, shortcuts: KeyboardShortcut("w")) {
                 Task { await manager.requestClose() }
             }
                 .disabled(!manager.isOpen)

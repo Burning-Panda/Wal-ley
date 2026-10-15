@@ -108,8 +108,8 @@ struct KeySegmented: NSViewRepresentable {
 
 extension View {
     /// A Tab stop that runs `action` on space or return.
-    func keyActivated(_ action: @escaping () -> Void) -> some View {
-        focusable()
+    func keyActivated(tabStop: Bool = true, _ action: @escaping () -> Void) -> some View {
+        focusable(tabStop)
             .onKeyPress(.space) { action(); return .handled }
             .onKeyPress(.return) { action(); return .handled }
     }

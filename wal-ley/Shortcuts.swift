@@ -72,17 +72,20 @@ struct ShortcutButton: View {
     var help: String?
     /// Where the badge sits: centered under the button, or beside it for buttons with content below.
     var hintBeside = false
+    /// Off for toolbar buttons: Tab goes through the content, and their shortcuts and clicks still work.
+    var tabStop = true
     let shortcuts: [KeyboardShortcut]
     let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
 
     init(_ title: String, systemImage: String? = nil, role: ButtonRole? = nil, help: String? = nil,
-         hintBeside: Bool = false, shortcuts: KeyboardShortcut..., action: @escaping () -> Void) {
+         hintBeside: Bool = false, tabStop: Bool = true, shortcuts: KeyboardShortcut..., action: @escaping () -> Void) {
         self.title = title
         self.systemImage = systemImage
         self.role = role
         self.help = help
         self.hintBeside = hintBeside
+        self.tabStop = tabStop
         self.shortcuts = shortcuts
         self.action = action
     }
@@ -98,7 +101,7 @@ struct ShortcutButton: View {
             }
         }
         .keyboardShortcut(shortcuts[0])
-        .keyActivated(action)
+        .keyActivated(tabStop: tabStop, action)
         .help(Self.tooltip(help ?? title, shortcuts[0]))
         .modifier(ExtraShortcuts(title: title, shortcuts: Array(shortcuts.dropFirst()), action: action))
         .overlay(alignment: hintBeside ? .leading : .bottom) {
