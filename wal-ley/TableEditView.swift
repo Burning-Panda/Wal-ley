@@ -163,7 +163,6 @@ private struct ColumnHeader: View {
             Text("Default").frame(width: Layout.defaultValue, alignment: .leading)
             ShortcutButton("Add Column", systemImage: "plus", shortcuts: KeyboardShortcut("n"), action: onAdd)
                 .labelStyle(.iconOnly).buttonStyle(.borderless)
-                .focusable()
                 .frame(width: Layout.action)
         }
         .font(.callout.weight(.medium))

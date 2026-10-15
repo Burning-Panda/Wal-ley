@@ -98,6 +98,7 @@ struct ShortcutButton: View {
             }
         }
         .keyboardShortcut(shortcuts[0])
+        .focusable()
         .help(Self.tooltip(help ?? title, shortcuts[0]))
         .modifier(ExtraShortcuts(title: title, shortcuts: Array(shortcuts.dropFirst()), action: action))
         .overlay(alignment: hintBeside ? .leading : .bottom) {

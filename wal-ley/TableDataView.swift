@@ -45,7 +45,7 @@ private struct FilterBar: View {
                     Text("Builder").tag(false)
                     Text("SQL").tag(true)
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 140)
+                .pickerStyle(.segmented).labelsHidden().focusable().frame(width: 140)
                 if sqlMode { sqlButtons } else { builder }
             }
             if sqlMode {
@@ -94,11 +94,11 @@ private struct FilterBar: View {
         Picker("Column", selection: $column) {
             ForEach(manager.selectedTable?.columns ?? []) { Text($0.name).tag($0.name) }
         }
-        .labelsHidden().frame(width: 160)
+        .labelsHidden().focusable().frame(width: 160)
         Picker("Operator", selection: $op) {
             ForEach(FilterOperator.allCases) { Text($0.rawValue).tag($0) }
         }
-        .labelsHidden().frame(width: 150)
+        .labelsHidden().focusable().frame(width: 150)
         if op.needsValue {
             PlainTextField(text: $value, placeholder: "Value", onSubmit: add)
         }
@@ -115,6 +115,7 @@ private struct FilterBar: View {
             Label(manager.columnList.map { "Columns \($0.count)/\(total)" } ?? "Columns", systemImage: "checklist")
         }
         .fixedSize()
+        .focusable()
         ShortcutButton("Add Filter", systemImage: "line.3.horizontal.decrease",
                        shortcuts: KeyboardShortcut(.return, modifiers: .command), action: add)
             .disabled(column.isEmpty || (op.needsValue && value.isEmpty))
@@ -127,6 +128,7 @@ private struct FilterBar: View {
             manager.setRawQuery(sqlText)
         }
         Button("Reset") { manager.setRawQuery(nil); sqlText = manager.generatedQuery }
+            .focusable()
         Text("Read-only · paging and header sorting apply on top")
             .font(.caption).foregroundStyle(.secondary)
         Spacer()
@@ -167,6 +169,7 @@ private struct FooterBar: View {
             if manager.pendingCount > 0 {
                 Text("\(manager.pendingCount) unsaved").foregroundStyle(.orange)
                 Button("Discard") { manager.discardChanges() }
+                    .focusable()
                 ShortcutButton("Save", shortcuts: KeyboardShortcut("s")) { Task { await manager.saveChanges() } }
                     .buttonStyle(.borderedProminent)
             }
