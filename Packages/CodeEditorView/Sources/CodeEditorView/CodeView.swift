@@ -406,7 +406,7 @@ final class CodeView: NSTextView {
   override func becomeFirstResponder() -> Bool {
     let became = super.becomeFirstResponder()
     if became {
-      updateEditingIndicator()
+      updateEditingIndicator(focused: true)
       updateCaret()
       // The indicator view can appear a moment after focus.
       DispatchQueue.main.async { [weak self] in self?.updateCaret() }
@@ -417,7 +417,8 @@ final class CodeView: NSTextView {
   override func resignFirstResponder() -> Bool {
     isEditing = false
     let resigned = super.resignFirstResponder()
-    updateEditingIndicator()
+    // `firstResponder` still points here during resignation, so say outright that focus is going.
+    updateEditingIndicator(focused: !resigned)
     updateCaret()
     return resigned
   }
@@ -425,9 +426,9 @@ final class CodeView: NSTextView {
   private static let hintTag = 0x7761_6c65
 
   /// While focused but not editing: an accent outline and a "Press ↩ to edit" label, since the caret is hidden.
-  private func updateEditingIndicator() {
+  private func updateEditingIndicator(focused: Bool? = nil) {
     guard let scrollView = enclosingScrollView else { return }
-    let waiting = window?.firstResponder === self && !isEditing
+    let waiting = (focused ?? (window?.firstResponder === self)) && !isEditing
     scrollView.wantsLayer = true
     scrollView.layer?.borderColor = NSColor.controlAccentColor.cgColor
     scrollView.layer?.borderWidth = waiting ? 1.5 : 0
