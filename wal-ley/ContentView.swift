@@ -87,6 +87,7 @@ struct ContentView: View {
                                 .frame(width: 180)
                         }
                         .buttonStyle(.borderedProminent)
+                        .keyActivated { Task { await manager.requestNewDatabase() } }
 
                         Button(action: {
                             manager.showOpenPanel = true
@@ -96,6 +97,7 @@ struct ContentView: View {
 
                         }
                         .buttonStyle(.bordered)
+                        .keyActivated { manager.showOpenPanel = true }
                     }
 
                 }
@@ -107,6 +109,7 @@ struct ContentView: View {
                                 Label(url.lastPathComponent, systemImage: "clock")
                             }
                             .buttonStyle(.link)
+                            .keyActivated { Task { await manager.requestOpen(url) } }
                             .help(url.path)
                         }
                     }
@@ -124,6 +127,7 @@ struct ContentView: View {
                     Text("This database has no tables yet.")
                 } actions: {
                     Button("New Table…") { manager.showNewTable = true }
+                        .keyActivated { if !manager.isReadOnly { manager.showNewTable = true } }
                         .disabled(manager.isReadOnly)
                 }
             case nil: ContentUnavailableView("Select a table", systemImage: "tablecells")
