@@ -31,6 +31,7 @@ struct DataGridView: NSViewRepresentable {
         table.target = context.coordinator
         table.doubleAction = #selector(Coordinator.doubleClicked(_:))
         table.onDeleteKey = { [weak coordinator = context.coordinator] in coordinator?.deleteSelection() }
+        table.onReturnKey = { [weak coordinator = context.coordinator] in coordinator?.editFocusedCell() }
         let menu = NSMenu()
         menu.delegate = context.coordinator
         table.menu = menu
@@ -83,18 +84,85 @@ struct DataGridView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    /// Forwards Delete / Forward Delete to the grid instead of beeping.
+    /// Forwards Delete / Forward Delete to the grid instead of beeping. Up and down move the selected row as usual;
+    /// left and right move the focused cell along it, and return edits that cell.
     final class GridTableView: NSTableView {
         var onDeleteKey: () -> Void = {}
+        var onReturnKey: () -> Void = {}
+        /// The cell the keyboard is on, within the selected row; outlined while the grid has focus.
+        var activeColumn = -1 { didSet { redrawRows() } }
+
+        /// Row views draw the selection and the outline, so they need telling, not the table.
+        private func redrawRows() {
+            enumerateAvailableRowViews { rowView, _ in rowView.needsDisplay = true }
+        }
 
         override func keyDown(with event: NSEvent) {
-            if event.keyCode == 51 || event.keyCode == 117 { onDeleteKey() } else { super.keyDown(with: event) }
+            let plain = event.modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty
+            switch event.keyCode {
+            case 51, 117: onDeleteKey()
+            case 36, 76 where plain: onReturnKey()
+            case 123 where plain: moveFocus(by: -1)
+            case 124 where plain: moveFocus(by: 1)
+            default: super.keyDown(with: event)
+            }
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            let column = column(at: convert(event.locationInWindow, from: nil))
+            super.mouseDown(with: event)
+            if column >= 0 { activeColumn = column }
+        }
+
+        override func becomeFirstResponder() -> Bool {
+            if activeColumn < 0, numberOfColumns > 0 { activeColumn = 0 }
+            if selectedRow < 0, numberOfRows > 0 { selectRowIndexes([0], byExtendingSelection: false) }
+            let became = super.becomeFirstResponder()
+            redrawRows()
+            return became
+        }
+
+        private func moveFocus(by step: Int) {
+            guard numberOfColumns > 0 else { return }
+            let next = min(max(activeColumn + step, 0), numberOfColumns - 1)
+            activeColumn = next
+            if selectedRow >= 0 { scrollColumnToVisible(next) }
+        }
+
+        override func selectRowIndexes(_ indexes: IndexSet, byExtendingSelection extend: Bool) {
+            super.selectRowIndexes(indexes, byExtendingSelection: extend)
+            redrawRows()
+        }
+
+        override func resignFirstResponder() -> Bool {
+            let resigned = super.resignFirstResponder()
+            redrawRows()
+            return resigned
+        }
+    }
+
+    /// Selected rows draw their highlight in the row view, over the table's own drawing, so the active cell's
+    /// outline is drawn here as well, on top of the highlight.
+    final class GridRowView: NSTableRowView {
+        override func drawSelection(in dirtyRect: NSRect) {
+            super.drawSelection(in: dirtyRect)
+            guard let table = superview as? GridTableView, table.window?.firstResponder === table,
+                  table.activeColumn >= 0, table.activeColumn < table.numberOfColumns else { return }
+            let row = table.row(for: self)
+            guard row >= 0 else { return }
+            let frame = convert(table.frameOfCell(atColumn: table.activeColumn, row: row), from: table).insetBy(dx: 1, dy: 1)
+            NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.25).setFill()
+            NSBezierPath(roundedRect: frame, xRadius: 4, yRadius: 4).fill()
+            let path = NSBezierPath(roundedRect: frame.insetBy(dx: 1, dy: 1), xRadius: 3, yRadius: 3)
+            path.lineWidth = 2
+            NSColor.alternateSelectedControlTextColor.setStroke()
+            path.stroke()
         }
     }
 
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate, NSMenuDelegate {
         var parent: DataGridView
-        weak var tableView: NSTableView?
+        weak var tableView: GridTableView?
         var builtColumns: [String] = []
         var builtTable = ""
         var builtSortable = false
@@ -127,6 +195,8 @@ struct DataGridView: NSViewRepresentable {
         // MARK: Data source / delegate
 
         func numberOfRows(in tableView: NSTableView) -> Int { parent.grid.rows.count }
+
+        func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { GridRowView() }
 
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard let tableColumn, let index = parent.grid.columns.firstIndex(of: tableColumn.identifier.rawValue),
@@ -190,7 +260,16 @@ struct DataGridView: NSViewRepresentable {
         // MARK: Editing (double-click)
 
         @objc func doubleClicked(_ sender: NSTableView) {
-            let row = sender.clickedRow, column = sender.clickedColumn
+            beginEdit(in: sender, row: sender.clickedRow, column: sender.clickedColumn)
+        }
+
+        /// Return on the selected row edits its focused cell.
+        func editFocusedCell() {
+            guard let table = tableView, table.selectedRowIndexes.count == 1 else { return }
+            beginEdit(in: table, row: table.selectedRow, column: table.activeColumn)
+        }
+
+        private func beginEdit(in sender: NSTableView, row: Int, column: Int) {
             guard parent.editable, row >= 0, column >= 0, !isDeleted(row: row),
                   let cell = sender.view(atColumn: column, row: row, makeIfNecessary: true) as? NSTableCellView,
                   let field = cell.textField, !field.stringValue.hasPrefix("<blob ") else { return }
